@@ -1,0 +1,545 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>One day, one precinct — 911 in the 75th</title>
+<link rel="preconnect" href="https://unpkg.com">
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<style>
+  :root{
+    --bg:#0b0f14; --panel:#121821; --panel2:#0e141c; --ink:#e7edf3; --mut:#8aa0b4;
+    --line:#1f2a37; --line2:#2a3a4d; --accent:#37d0c4; --accent2:#5aa9ff;
+    --crit:#ff4d5e; --serious:#ff9f1c; --noncrit:#ffd23f; --routine:#5b7388;
+    /* family palette */
+    --f-patrol:#5b7388; --f-medical:#3ad29f; --f-invest:#7f93a6; --f-other:#6b7a8c;
+    --f-dispute:#ffb454; --f-theft:#ff8c42; --f-accident:#b07cff; --f-disorder:#ffd23f;
+    --f-assault:#ff5e6c; --f-weapon:#ff2d55; --f-alarm:#36c5f0;
+    --mono:"SFMono-Regular",ui-monospace,"JetBrains Mono",Menlo,Consolas,monospace;
+    --sans:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0}
+  body{background:var(--bg);color:var(--ink);font-family:var(--sans);line-height:1.5;
+    -webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility}
+  .wrap{max-width:1080px;margin:0 auto;padding:0 18px}
+  a{color:var(--accent2)}
+  h1,h2,h3{font-weight:650;letter-spacing:-.01em;line-height:1.15;margin:0}
+  .mono{font-family:var(--mono)}
+  .mut{color:var(--mut)}
+
+  /* header */
+  header.hero{border-bottom:1px solid var(--line);background:
+    radial-gradient(1200px 400px at 75% -120px,rgba(55,208,196,.10),transparent 60%),
+    radial-gradient(900px 360px at 10% -100px,rgba(90,169,255,.10),transparent 60%);}
+  .kicker{font-family:var(--mono);font-size:12px;letter-spacing:.18em;text-transform:uppercase;
+    color:var(--accent);display:flex;align-items:center;gap:9px;margin:30px 0 14px}
+  .kicker .dot{width:8px;height:8px;border-radius:50%;background:var(--crit);
+    box-shadow:0 0 0 0 rgba(255,77,94,.7);animation:pulse 2s infinite}
+  @keyframes pulse{0%{box-shadow:0 0 0 0 rgba(255,77,94,.6)}70%{box-shadow:0 0 0 9px rgba(255,77,94,0)}100%{box-shadow:0 0 0 0 rgba(255,77,94,0)}}
+  h1.title{font-size:clamp(30px,5.4vw,52px);margin-bottom:12px}
+  .sub{font-size:clamp(16px,2.2vw,20px);color:var(--mut);max-width:680px}
+  .meta{display:flex;flex-wrap:wrap;gap:8px 18px;margin:22px 0 30px;font-size:13px;color:var(--mut);font-family:var(--mono)}
+  .meta b{color:var(--ink);font-weight:600}
+
+  /* stat strip */
+  .stats{display:grid;grid-template-columns:repeat(4,1fr);gap:1px;background:var(--line);
+    border-top:1px solid var(--line);border-bottom:1px solid var(--line)}
+  .stat{background:var(--panel2);padding:20px 18px}
+  .stat .n{font-size:clamp(26px,4.4vw,40px);font-weight:680;letter-spacing:-.02em;font-variant-numeric:tabular-nums}
+  .stat .l{font-size:12.5px;color:var(--mut);margin-top:4px}
+  .stat .n.crit{color:var(--crit)} .stat .n.acc{color:var(--accent)}
+
+  section{padding:46px 0;border-bottom:1px solid var(--line)}
+  .sec-h{font-size:13px;font-family:var(--mono);letter-spacing:.14em;text-transform:uppercase;color:var(--accent);margin-bottom:8px}
+  .sec-t{font-size:clamp(22px,3.4vw,30px);margin-bottom:10px}
+  .sec-d{color:var(--mut);max-width:680px;margin-bottom:22px}
+
+  /* map */
+  .mapcard{border:1px solid var(--line2);border-radius:14px;overflow:hidden;background:var(--panel)}
+  #map{height:520px;width:100%;background:#0a0e13;z-index:1}
+  .leaflet-container{background:#0a0e13;font-family:var(--sans)}
+  .leaflet-popup-content-wrapper{background:#0e141c;color:var(--ink);border:1px solid var(--line2);border-radius:10px;box-shadow:0 12px 40px rgba(0,0,0,.5)}
+  .leaflet-popup-tip{background:#0e141c;border:1px solid var(--line2)}
+  .leaflet-popup-content{margin:12px 14px;font-size:13px;line-height:1.45}
+  .pop-ty{font-weight:650;margin-bottom:6px;font-size:13.5px}
+  .pop-row{display:flex;justify-content:space-between;gap:16px;font-family:var(--mono);font-size:12px;color:var(--mut)}
+  .pop-row b{color:var(--ink);font-weight:600}
+  .pchip{display:inline-block;font-family:var(--mono);font-size:10.5px;padding:1px 7px;border-radius:20px;margin-top:7px;font-weight:600}
+
+  .controls{padding:14px 14px 16px;border-top:1px solid var(--line)}
+  .timerow{display:flex;align-items:center;gap:14px}
+  .playbtn{flex:none;width:44px;height:44px;border-radius:50%;border:1px solid var(--line2);
+    background:var(--panel2);color:var(--ink);cursor:pointer;font-size:16px;display:flex;align-items:center;justify-content:center;transition:.15s}
+  .playbtn:hover{border-color:var(--accent);color:var(--accent)}
+  .playbtn.on{background:var(--accent);color:#04201d;border-color:var(--accent)}
+  .clock{font-family:var(--mono);font-size:26px;font-weight:680;font-variant-numeric:tabular-nums;min-width:118px;letter-spacing:.02em}
+  .clock small{font-size:12px;color:var(--mut);font-weight:500;display:block;letter-spacing:.1em}
+  .slider-wrap{flex:1}
+  input[type=range]{width:100%;-webkit-appearance:none;height:6px;border-radius:6px;
+    background:linear-gradient(90deg,var(--accent) 0%,var(--accent) 0%,#22303f 0%);outline:none}
+  input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:18px;height:18px;border-radius:50%;
+    background:#fff;border:3px solid var(--accent);cursor:pointer;box-shadow:0 2px 6px rgba(0,0,0,.5)}
+  .modes{display:flex;gap:6px;margin-left:auto}
+  .modebtn{font-family:var(--mono);font-size:11px;padding:6px 10px;border-radius:7px;border:1px solid var(--line2);
+    background:var(--panel2);color:var(--mut);cursor:pointer}
+  .modebtn.on{background:#1a2a38;color:var(--ink);border-color:var(--accent)}
+
+  .legend{display:flex;flex-wrap:wrap;gap:7px;margin-top:16px}
+  .lchip{display:flex;align-items:center;gap:7px;font-size:12px;padding:5px 10px 5px 8px;border-radius:20px;
+    border:1px solid var(--line2);background:var(--panel2);cursor:pointer;user-select:none;transition:.12s}
+  .lchip .sw{width:10px;height:10px;border-radius:50%}
+  .lchip .ct{font-family:var(--mono);color:var(--mut);font-size:11px}
+  .lchip.off{opacity:.32}
+  .prifilter{display:flex;gap:6px;flex-wrap:wrap;margin-top:12px;align-items:center}
+  .prifilter .lab{font-size:11px;font-family:var(--mono);color:var(--mut);text-transform:uppercase;letter-spacing:.1em;margin-right:4px}
+  .pbtn{font-family:var(--mono);font-size:11px;padding:5px 11px;border-radius:20px;border:1px solid var(--line2);
+    background:var(--panel2);color:var(--mut);cursor:pointer}
+  .pbtn.on{color:#04201d;font-weight:600}
+  .hint{font-size:12px;color:var(--mut);margin-top:12px;font-style:italic}
+
+  /* charts */
+  .chart{width:100%}
+  .bar-row{display:grid;grid-template-columns:160px 1fr 54px;align-items:center;gap:12px;margin:7px 0;cursor:default}
+  .bar-row .nm{font-size:13px;text-align:right;color:var(--ink)}
+  .bar-track{height:22px;background:#0e141c;border-radius:5px;overflow:hidden;border:1px solid var(--line)}
+  .bar-fill{height:100%;border-radius:5px 0 0 5px;transition:width .8s cubic-bezier(.2,.7,.2,1)}
+  .bar-row .vl{font-family:var(--mono);font-size:12.5px;color:var(--mut);font-variant-numeric:tabular-nums}
+
+  .hours{display:flex;align-items:flex-end;gap:3px;height:200px;margin-top:8px}
+  .hbar{flex:1;background:linear-gradient(180deg,var(--accent2),#2b5a8c);border-radius:3px 3px 0 0;
+    position:relative;cursor:pointer;min-height:2px;transition:.15s;opacity:.85}
+  .hbar:hover{opacity:1;filter:brightness(1.15)}
+  .hbar.sel{background:linear-gradient(180deg,var(--accent),#1f7a72);opacity:1}
+  .hbar .hv{position:absolute;top:-18px;left:50%;transform:translateX(-50%);font-family:var(--mono);font-size:10px;color:var(--mut)}
+  .hlabels{display:flex;gap:3px;margin-top:6px}
+  .hlabels span{flex:1;text-align:center;font-family:var(--mono);font-size:9.5px;color:var(--mut)}
+
+  /* pipeline */
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:26px}
+  .pipe{display:flex;flex-direction:column;gap:8px}
+  .pstep{background:var(--panel2);border:1px solid var(--line);border-left:3px solid var(--accent);
+    border-radius:8px;padding:12px 14px;display:flex;justify-content:space-between;align-items:center}
+  .pstep .pl{font-size:13.5px} .pstep .pl small{display:block;color:var(--mut);font-size:11.5px;font-family:var(--mono);margin-top:2px}
+  .pstep .pn{font-family:var(--mono);font-size:20px;font-weight:680;font-variant-numeric:tabular-nums}
+  table.tt{width:100%;border-collapse:collapse;font-size:13px}
+  table.tt th,table.tt td{padding:9px 8px;border-bottom:1px solid var(--line);text-align:right}
+  table.tt th:first-child,table.tt td:first-child{text-align:left}
+  table.tt th{font-family:var(--mono);font-size:11px;text-transform:uppercase;letter-spacing:.08em;color:var(--mut);font-weight:600}
+  table.tt td{font-variant-numeric:tabular-nums}
+  table.tt td.big{font-family:var(--mono);font-weight:600;color:var(--ink)}
+  .pri-dot{display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:7px;vertical-align:middle}
+
+  /* critical timeline */
+  .ctl{position:relative;margin-top:8px;padding-left:6px}
+  .ctl .citem{display:grid;grid-template-columns:74px 1fr auto;gap:14px;align-items:center;padding:13px 0;border-bottom:1px solid var(--line)}
+  .ctl .ctime{font-family:var(--mono);font-size:15px;font-weight:680;color:var(--crit)}
+  .ctl .cty{font-size:14px}
+  .ctl .cresp{font-family:var(--mono);font-size:12px;color:var(--mut);text-align:right}
+  .ctl .cresp b{color:var(--accent);font-weight:600;font-size:15px}
+
+  /* methodology */
+  .methodbox{background:var(--panel2);border:1px solid var(--line);border-radius:12px;padding:22px 24px}
+  .methodbox h3{font-size:15px;margin-bottom:6px}
+  .methodbox ul{margin:0 0 16px;padding-left:18px;color:var(--mut);font-size:14px}
+  .methodbox li{margin:6px 0}
+  .methodbox b{color:var(--ink)}
+
+  /* AI caution */
+  .aibtn{font-family:var(--mono);font-size:11.5px;letter-spacing:.05em;background:#3a0d14;color:#ff9aa6;
+    border:1px solid #5e1822;padding:8px 14px;border-radius:8px;cursor:pointer}
+  .aipop{display:none;margin-top:14px;background:#0c1830;border:1px solid #1c2f52;border-radius:12px;padding:20px 22px;color:#bcd0ee;font-size:13.5px}
+  .aipop.show{display:block}
+  .aipop h3{color:#dce8ff;font-size:14px;margin-bottom:8px}
+  .aipop ul{margin:0;padding-left:18px} .aipop li{margin:5px 0}
+
+  footer{padding:34px 0 60px;color:var(--mut);font-size:12.5px}
+  @media(max-width:760px){
+    .stats{grid-template-columns:repeat(2,1fr)}
+    .grid2{grid-template-columns:1fr;gap:30px}
+    .bar-row{grid-template-columns:120px 1fr 44px}
+    .timerow{flex-wrap:wrap}.modes{margin-left:0}
+    #map{height:420px}
+  }
+</style>
+</head>
+<body>
+
+<header class="hero">
+  <div class="wrap">
+    <div class="kicker"><span class="dot"></span> One day on the police radio</div>
+    <h1 class="title">431 jobs, one precinct, 24 hours</h1>
+    <p class="sub">Every 911 call and radio run dispatched in the 75th Precinct — East New York, Brooklyn — on a single ordinary Wednesday. Watch the day unfold, then dig into what the calls were and how fast police arrived.</p>
+    <div class="meta">
+      <span><b>75th Precinct</b> · East New York / Cypress Hills</span>
+      <span><b>Wed, December 17, 2025</b></span>
+      <span>Source: <b>NYPD Calls for Service</b>, NYC Open Data</span>
+    </div>
+  </div>
+  <div class="wrap">
+    <div class="stats">
+      <div class="stat"><div class="n">431</div><div class="l">jobs dispatched in 24 hours</div></div>
+      <div class="stat"><div class="n acc">1 / 3.3 min</div><div class="l">average time between jobs</div></div>
+      <div class="stat"><div class="n">10.1 min</div><div class="l">median time to a unit on scene</div></div>
+      <div class="stat"><div class="n crit">6</div><div class="l">critical jobs — guns and knives</div></div>
+    </div>
+  </div>
+</header>
+
+<!-- MAP -->
+<section>
+  <div class="wrap">
+    <div class="sec-h">The day, block by block</div>
+    <h2 class="sec-t">Where the calls came from</h2>
+    <p class="sec-d">Each dot is one dispatched job, placed at the location the radio run was logged and colored by what kind of call it was. Press play to sweep through the 24 hours, or drag the slider. Tap the colored chips to isolate a call type, and click any dot for the details.</p>
+
+    <div class="mapcard">
+      <div id="map"></div>
+      <div class="controls">
+        <div class="timerow">
+          <button class="playbtn" id="play" aria-label="Play the day">▶</button>
+          <div class="clock"><span id="clock">All day</span><small id="clocksub" class="mono">431 jobs shown</small></div>
+          <div class="slider-wrap"><input type="range" id="slider" min="0" max="86399" value="86399" step="60"></div>
+          <div class="modes">
+            <button class="modebtn on" id="m-all" data-mode="all">Show all</button>
+            <button class="modebtn" id="m-flow" data-mode="flow">Live flow</button>
+          </div>
+        </div>
+
+        <div class="prifilter">
+          <span class="lab">Priority</span>
+          <button class="pbtn on" data-pri="all" style="border-color:var(--accent);color:var(--accent)">All</button>
+          <button class="pbtn" data-pri="Critical" style="--c:var(--crit)">Critical</button>
+          <button class="pbtn" data-pri="Serious" style="--c:var(--serious)">Serious</button>
+          <button class="pbtn" data-pri="Non Critical" style="--c:var(--noncrit)">Non-critical</button>
+          <button class="pbtn" data-pri="Non CIP" style="--c:var(--routine)">Routine</button>
+        </div>
+
+        <div class="legend" id="legend"></div>
+        <div class="hint">Tip — in “Live flow” mode, dots brighten as their call comes in and fade over the following 40 minutes, so you can watch the rhythm of a shift.</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- HOURLY -->
+<section>
+  <div class="wrap">
+    <div class="sec-h">The rhythm of the day</div>
+    <h2 class="sec-t">When the calls came in</h2>
+    <p class="sec-d">Jobs by hour of the day. The quiet stretch is 3–5 a.m.; volume jumps at the 9 a.m. shift change and holds through a long afternoon and evening plateau. Click any bar to pin the map to that hour.</p>
+    <div class="hours" id="hours"></div>
+    <div class="hlabels" id="hlabels"></div>
+  </div>
+</section>
+
+<!-- CALL TYPES -->
+<section>
+  <div class="wrap">
+    <div class="sec-h">What the calls were</div>
+    <h2 class="sec-t">94 kinds of trouble, sorted into families</h2>
+    <p class="sec-d">The busiest part of a busy precinct is not violent crime. Proactive patrol checks and medical and mental-health assists outnumber every crime category. Emotionally disturbed person (EDP) calls alone outnumber every type of theft.</p>
+    <div class="chart" id="fams"></div>
+  </div>
+</section>
+
+<!-- RESPONSE -->
+<section>
+  <div class="wrap">
+    <div class="sec-h">The response</div>
+    <h2 class="sec-t">From the call to the curb</h2>
+    <p class="sec-d">How far each job travelled through the dispatch system, and how long each leg took. Medians are shown because a long tail of low-priority jobs left waiting in queue pulls the averages far higher.</p>
+    <div class="grid2">
+      <div>
+        <h3 style="font-size:14px;margin-bottom:12px;color:var(--mut);font-family:var(--mono);text-transform:uppercase;letter-spacing:.1em">The pipeline</h3>
+        <div class="pipe">
+          <div class="pstep" style="border-left-color:var(--accent2)"><div class="pl">Job created<small>911 call or radio run entered</small></div><div class="pn">431</div></div>
+          <div class="pstep" style="border-left-color:var(--accent2)"><div class="pl">Dispatched to a unit<small>100% — every job assigned</small></div><div class="pn">431</div></div>
+          <div class="pstep" style="border-left-color:var(--accent)"><div class="pl">Unit arrived on scene<small>60% — many patrol runs self-clear</small></div><div class="pn">260</div></div>
+          <div class="pstep" style="border-left-color:var(--accent)"><div class="pl">Closed / cleared<small>100% — every job resolved in system</small></div><div class="pn">431</div></div>
+        </div>
+      </div>
+      <div>
+        <h3 style="font-size:14px;margin-bottom:12px;color:var(--mut);font-family:var(--mono);text-transform:uppercase;letter-spacing:.1em">Timing &amp; priority</h3>
+        <table class="tt">
+          <thead><tr><th>Leg of the response</th><th>Median</th><th>p90</th></tr></thead>
+          <tbody>
+            <tr><td>Create → dispatch (queue)</td><td class="big">1.9 min</td><td>61.5</td></tr>
+            <tr><td>Dispatch → arrival (travel)</td><td class="big">6.1 min</td><td>141.8</td></tr>
+            <tr><td>Total to on scene</td><td class="big">10.1 min</td><td>193.4</td></tr>
+            <tr><td>Time on scene</td><td class="big">16.5 min</td><td>106.9</td></tr>
+          </tbody>
+        </table>
+        <table class="tt" style="margin-top:18px">
+          <thead><tr><th>Median response by priority</th><th>Jobs</th><th>Median</th></tr></thead>
+          <tbody>
+            <tr><td><span class="pri-dot" style="background:var(--crit)"></span>Critical</td><td>6</td><td class="big">6.3 min</td></tr>
+            <tr><td><span class="pri-dot" style="background:var(--serious)"></span>Serious</td><td>13</td><td class="big">12.1 min</td></tr>
+            <tr><td><span class="pri-dot" style="background:var(--noncrit)"></span>Non-critical</td><td>14</td><td class="big">25.4 min</td></tr>
+            <tr><td><span class="pri-dot" style="background:var(--routine)"></span>Routine</td><td>227</td><td class="big">7.9 min</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- CRITICAL -->
+<section>
+  <div class="wrap">
+    <div class="sec-h">The sharp end</div>
+    <h2 class="sec-t">The six critical jobs</h2>
+    <p class="sec-d">Of 431 jobs, six were flagged critical — the calls involving guns and knives. Four came in the pre-dawn hours. Every one drew a unit on scene in under eight minutes.</p>
+    <div class="ctl" id="crit"></div>
+    <p class="hint">Also logged: 15 “serious” jobs — mostly larceny in progress (7) and assaults (8), three of them family assaults.</p>
+  </div>
+</section>
+
+<!-- METHOD -->
+<section style="border-bottom:none">
+  <div class="wrap">
+    <div class="sec-h">Methodology</div>
+    <h2 class="sec-t">How this was built — and its limits</h2>
+    <div class="methodbox">
+      <h3>Source &amp; scope</h3>
+      <ul>
+        <li><b>Data:</b> NYPD Calls for Service (Year-to-Date), NYC Open Data dataset <span class="mono">n2zq-pubd</span> — the police department's own computer-aided dispatch (CAD) log.</li>
+        <li><b>Slice:</b> all 431 jobs where precinct = 75 and incident date = December 17, 2025. All 431 carried valid coordinates.</li>
+        <li><b>Why this day:</b> the most recent full month available is December 2025. December 17 is a midweek day clear of the holiday week, with a job count (431) right at the precinct's December daily average — chosen to be ordinary, not anomalous.</li>
+        <li><b>Why the 75th:</b> the busiest residential precinct in the city, with the fullest mix of call types. The 14th (Midtown South) and 40th (Mott Haven) logged marginally more jobs in December but skew commercial.</li>
+      </ul>
+      <h3>Definitions &amp; caveats</h3>
+      <ul>
+        <li><b>“Response time”</b> measures job-created to first-unit-arrived. It excludes the time a 911 caller spends on the line before a call-taker creates the job, so true door-to-door response is somewhat longer.</li>
+        <li><b>The 40% with no arrival time</b> are largely officer-initiated runs — visibility patrol, transit inspections, ShotSpotter activations — that self-clear without a separate arrival stamp. They are not failures to respond. Timing statistics use only the 260 jobs with an arrival time.</li>
+        <li><b>Medians, not means.</b> A handful of low-priority jobs sat in queue for hours and badly skew the averages; medians are the honest central measure.</li>
+        <li><b>Jobs, not incidents or arrests.</b> One incident can generate several jobs, and this dataset carries no arrest or disposition outcome.</li>
+        <li><b>Priority</b> uses the NYPD “CIP” field (Critical / Serious / Non-Critical / Non-CIP). “Families” are this project's grouping of 94 raw call descriptions, listed in full in the dataset.</li>
+      </ul>
+      <button class="aibtn" id="aibtn">⚠ AI caution — read before sharing</button>
+      <div class="aipop" id="aipop">
+        <h3>Made with AI assistance</h3>
+        <p style="margin:0 0 10px">This infographic was assembled with an AI assistant. What was and wasn't checked:</p>
+        <ul>
+          <li><b>Verified:</b> every figure is computed directly from the raw NYC Open Data records — totals, hourly counts, priority splits and response-time medians were all derived in code from the 431 downloaded rows, not estimated.</li>
+          <li><b>Verified:</b> all 431 jobs were geocoded in the source data; map points are the city's own coordinates.</li>
+          <li><b>Not independently verified:</b> the accuracy of the underlying police records themselves, including how each call was classified and timestamped by the NYPD.</li>
+          <li><b>Judgment calls:</b> the grouping of 94 call descriptions into families is editorial. The single-day snapshot is illustrative and should not be read as the precinct's typical pattern.</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</section>
+
+<footer>
+  <div class="wrap">
+    Built from NYC Open Data · NYPD Calls for Service (Year-to-Date), dataset n2zq-pubd · 75th Precinct, December 17, 2025 · Map tiles © OpenStreetMap contributors © CARTO.
+  </div>
+</footer>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="data.js"></script>
+<script>
+const FAM = [
+  ["Patrol/visibility","--f-patrol"],["Medical/EMS","--f-medical"],["Investigate/check","--f-invest"],
+  ["Dispute","--f-dispute"],["Theft/robbery/burglary","--f-theft"],["Vehicle accident","--f-accident"],
+  ["Disorder/quality-of-life","--f-disorder"],["Assault","--f-assault"],["Weapon/shots","--f-weapon"],
+  ["Alarm","--f-alarm"],["Other","--f-other"]
+];
+const cssv = n => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+const famColor = {}; FAM.forEach(([n,v])=>famColor[n]=cssv(v));
+const PRI_COLOR = {"Critical":cssv("--crit"),"Serious":cssv("--serious"),"Non Critical":cssv("--noncrit"),"Non CIP":cssv("--routine")};
+
+const calls = window.CALLS.filter(c=>c.lat&&c.lon);
+const state = { mode:"all", cursor:86399, activeFam:new Set(FAM.map(f=>f[0])), pri:"all", hour:null };
+
+/* ---------- MAP ---------- */
+const map = L.map('map',{zoomControl:true,attributionControl:true}).setView([40.6655,-73.881],13.4);
+L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',{
+  attribution:'© OpenStreetMap © CARTO',subdomains:'abcd',maxZoom:19}).addTo(map);
+
+const markers = calls.map(c=>{
+  const m = L.circleMarker([c.lat,c.lon],{
+    radius: c.pri==="Critical"?8:(c.pri==="Serious"?6:4.2),
+    color: famColor[c.fam]||"#888", weight:1, fillColor:famColor[c.fam]||"#888",
+    fillOpacity:.82, opacity:.9
+  });
+  m.bindPopup(popup(c));
+  m._c = c;
+  return m;
+});
+const layer = L.layerGroup(markers).addTo(map);
+
+function popup(c){
+  const pc = PRI_COLOR[c.pri]||"#888";
+  const prLabel = c.pri==="Non CIP"?"Routine":c.pri;
+  const resp = c.rsp!=null? c.rsp.toFixed(1)+" min":"self-cleared";
+  return `<div class="pop-ty">${c.ty}</div>
+    <div class="pop-row"><span>Time</span><b>${c.tm}</b></div>
+    <div class="pop-row"><span>Family</span><b>${c.fam}</b></div>
+    <div class="pop-row"><span>To on scene</span><b>${resp}</b></div>
+    <span class="pchip" style="background:${hex2rgba(pc,.16)};color:${pc};border:1px solid ${hex2rgba(pc,.5)}">${prLabel.toUpperCase()}</span>`;
+}
+function hex2rgba(h,a){const x=h.replace('#','');const r=parseInt(x.slice(0,2),16),g=parseInt(x.slice(2,4),16),b=parseInt(x.slice(4,6),16);return `rgba(${r},${g},${b},${a})`;}
+
+const WINDOW = 40*60; // 40 min trail in flow mode
+function visible(c){
+  if(!state.activeFam.has(c.fam)) return null;
+  if(state.pri!=="all" && c.pri!==state.pri) return null;
+  if(state.hour!==null && c.h!==state.hour) return null;
+  if(state.mode==="flow"){
+    if(c.s>state.cursor) return null;
+    const age = state.cursor - c.s;
+    if(age>WINDOW) return 0.16;        // faded tail
+    return 1 - (age/WINDOW)*0.7;       // fresh -> bright
+  }
+  return 0.82;
+}
+function refresh(){
+  let shown=0;
+  markers.forEach(m=>{
+    const v = visible(m._c);
+    if(v===null){ if(map.hasLayer(m)) layer.removeLayer(m); }
+    else {
+      if(!map.hasLayer(m)) m.addTo(layer);
+      const fresh = state.mode==="flow" && (state.cursor-m._c.s)<90 && m._c.s<=state.cursor;
+      m.setStyle({fillOpacity:v,opacity:Math.min(1,v+.1),
+        radius:(m._c.pri==="Critical"?8:m._c.pri==="Serious"?6:4.2)*(fresh?1.6:1)});
+      shown++;
+    }
+  });
+  updateClock(shown);
+}
+function updateClock(shown){
+  const cl=document.getElementById('clock'), sub=document.getElementById('clocksub');
+  if(state.mode==="all" && state.hour===null){ cl.textContent="All day"; }
+  else if(state.hour!==null){ cl.textContent=String(state.hour).padStart(2,'0')+":00"; }
+  else { const h=Math.floor(state.cursor/3600),mm=Math.floor((state.cursor%3600)/60);
+    cl.textContent=String(h).padStart(2,'0')+":"+String(mm).padStart(2,'0'); }
+  sub.textContent = shown+" job"+(shown===1?"":"s")+" shown";
+  const pct=(state.cursor/86399)*100;
+  document.getElementById('slider').style.background=
+    `linear-gradient(90deg,var(--accent) ${pct}%,#22303f ${pct}%)`;
+}
+
+/* ---------- LEGEND ---------- */
+const counts={}; FAM.forEach(([n])=>counts[n]=0); calls.forEach(c=>counts[c.fam]++);
+const legend=document.getElementById('legend');
+FAM.forEach(([n,v])=>{
+  if(!counts[n]) return;
+  const el=document.createElement('div'); el.className='lchip'; el.dataset.fam=n;
+  el.innerHTML=`<span class="sw" style="background:${famColor[n]}"></span>${n} <span class="ct">${counts[n]}</span>`;
+  el.onclick=()=>{
+    if(state.activeFam.has(n)){
+      if(state.activeFam.size===FAM.length){ state.activeFam=new Set([n]); } // first click -> isolate
+      else if(state.activeFam.has(n)&&state.activeFam.size===1){ state.activeFam=new Set(FAM.map(f=>f[0])); } // un-isolate
+      else state.activeFam.delete(n);
+    } else state.activeFam.add(n);
+    syncLegend(); refresh();
+  };
+  legend.appendChild(el);
+});
+function syncLegend(){
+  document.querySelectorAll('.lchip').forEach(el=>{
+    el.classList.toggle('off', !state.activeFam.has(el.dataset.fam));
+  });
+}
+
+/* ---------- PRIORITY FILTER ---------- */
+document.querySelectorAll('.pbtn').forEach(b=>{
+  b.onclick=()=>{
+    state.pri=b.dataset.pri;
+    document.querySelectorAll('.pbtn').forEach(x=>{x.classList.remove('on');x.style.color='';x.style.borderColor='';});
+    b.classList.add('on');
+    const c = b.dataset.pri==="all"?cssv("--accent"):cssv((b.style.getPropertyValue('--c')||'').trim()||'--accent');
+    const col = b.dataset.pri==="all"?cssv("--accent"):b.style.getPropertyValue('--c');
+    b.style.color=col; b.style.borderColor=col;
+    refresh();
+  };
+});
+
+/* ---------- MODES + SLIDER + PLAY ---------- */
+const slider=document.getElementById('slider'), playBtn=document.getElementById('play');
+let timer=null;
+function setMode(mode){
+  state.mode=mode;
+  document.getElementById('m-all').classList.toggle('on',mode==='all');
+  document.getElementById('m-flow').classList.toggle('on',mode==='flow');
+  if(mode==='all'){ stop(); state.cursor=86399; slider.value=86399; }
+  else { state.hour=null; syncHours(); }
+  refresh();
+}
+document.getElementById('m-all').onclick=()=>setMode('all');
+document.getElementById('m-flow').onclick=()=>{ setMode('flow'); state.cursor=0; slider.value=0; refresh(); };
+slider.oninput=()=>{ if(state.mode==='all') setMode('flow'); state.hour=null; syncHours(); state.cursor=+slider.value; refresh(); };
+
+function play(){
+  state.mode='flow'; setMode('flow'); state.hour=null; syncHours();
+  if(state.cursor>=86399) state.cursor=0;
+  playBtn.textContent='❚❚'; playBtn.classList.add('on');
+  timer=setInterval(()=>{
+    state.cursor+=420; // 7 min per tick
+    if(state.cursor>=86399){ state.cursor=86399; slider.value=86399; refresh(); stop(); return; }
+    slider.value=state.cursor; refresh();
+  },90);
+}
+function stop(){ if(timer){clearInterval(timer);timer=null;} playBtn.textContent='▶'; playBtn.classList.remove('on'); }
+playBtn.onclick=()=>{ timer?stop():play(); };
+
+/* ---------- HOURLY CHART ---------- */
+const hourCounts=new Array(24).fill(0); calls.forEach(c=>{if(c.h!=null)hourCounts[c.h]++;});
+const maxH=Math.max(...hourCounts);
+const hoursEl=document.getElementById('hours'), hlab=document.getElementById('hlabels');
+hourCounts.forEach((n,h)=>{
+  const b=document.createElement('div'); b.className='hbar'; b.dataset.h=h;
+  b.style.height=(n/maxH*100)+'%';
+  b.innerHTML=`<span class="hv">${n}</span>`;
+  b.title=`${String(h).padStart(2,'0')}:00 — ${n} jobs`;
+  b.onclick=()=>{
+    state.hour = state.hour===h? null : h;
+    if(state.hour!==null){ setMode('all'); } // hour filter overrides flow
+    syncHours(); refresh();
+    document.getElementById('map').scrollIntoView({behavior:'smooth',block:'center'});
+  };
+  hoursEl.appendChild(b);
+  const s=document.createElement('span'); s.textContent=(h%3===0)?String(h).padStart(2,'0'):''; hlab.appendChild(s);
+});
+function syncHours(){ document.querySelectorAll('.hbar').forEach(b=>b.classList.toggle('sel',+b.dataset.h===state.hour)); }
+
+/* ---------- FAMILIES BAR CHART ---------- */
+const famArr=FAM.map(([n])=>[n,counts[n]]).filter(d=>d[1]>0).sort((a,b)=>b[1]-a[1]);
+const maxF=Math.max(...famArr.map(d=>d[1]));
+const famsEl=document.getElementById('fams');
+famArr.forEach(([n,v])=>{
+  const row=document.createElement('div'); row.className='bar-row';
+  row.innerHTML=`<div class="nm">${n}</div>
+    <div class="bar-track"><div class="bar-fill" style="width:0;background:${famColor[n]}"></div></div>
+    <div class="vl">${v} · ${(v/calls.length*100).toFixed(0)}%</div>`;
+  row.onclick=()=>{ state.activeFam=new Set([n]); syncLegend(); refresh();
+    document.getElementById('map').scrollIntoView({behavior:'smooth',block:'center'}); };
+  row.style.cursor='pointer';
+  famsEl.appendChild(row);
+  requestAnimationFrame(()=>{ setTimeout(()=>{ row.querySelector('.bar-fill').style.width=(v/maxF*100)+'%'; },60); });
+});
+
+/* ---------- CRITICAL TIMELINE ---------- */
+const critEl=document.getElementById('crit');
+calls.filter(c=>c.pri==="Critical").sort((a,b)=>a.s-b.s).forEach(c=>{
+  const d=document.createElement('div'); d.className='citem';
+  d.innerHTML=`<div class="ctime">${c.tm.slice(0,5)}</div>
+    <div class="cty">${c.ty}</div>
+    <div class="cresp">on scene<br><b>${c.rsp!=null?c.rsp.toFixed(1):'—'} min</b></div>`;
+  d.style.cursor='pointer';
+  d.onclick=()=>{ map.setView([c.lat,c.lon],16); markers.find(m=>m._c.id===c.id)?.openPopup();
+    document.getElementById('map').scrollIntoView({behavior:'smooth',block:'center'}); };
+  critEl.appendChild(d);
+});
+
+/* ---------- AI CAUTION ---------- */
+document.getElementById('aibtn').onclick=()=>document.getElementById('aipop').classList.toggle('show');
+
+/* init */
+syncLegend(); refresh();
+</script>
+</body>
+</html>
