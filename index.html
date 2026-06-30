@@ -6,6 +6,7 @@
 <title>A day on the police radio — NYC precinct explorer</title>
 <link rel="preconnect" href="https://unpkg.com">
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<link rel="stylesheet" href="https://unpkg.com/leaflet-gesture-handling/dist/leaflet-gesture-handling.min.css">
 <style>
   :root{
     --bg:#0b0f14; --panel:#121821; --panel2:#0e141c; --ink:#e7edf3; --mut:#8aa0b4;
@@ -350,6 +351,7 @@
 </footer>
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://unpkg.com/leaflet-gesture-handling"></script>
 <script>
 /* ---------- precinct directory ---------- */
 const PRECINCTS=[
@@ -406,7 +408,7 @@ function fmtMin(v){return v==null?'—':v.toFixed(1)+' min';}
 const TRAVEL=c=>c.rsp!=null&&c.rsp>0.2;
 
 /* ---------- map base ---------- */
-const map=L.map('map',{zoomControl:true}).setView([40.70,-73.92],11);
+const map=L.map('map',{zoomControl:true,gestureHandling:true}).setView([40.70,-73.92],11);
 L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',
   {attribution:'© OpenStreetMap © CARTO',subdomains:'abcd',maxZoom:19}).addTo(map);
 let layer=L.layerGroup().addTo(map);
