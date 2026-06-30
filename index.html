@@ -117,7 +117,7 @@
   .lchip.off{opacity:.32}
   .prifilter{display:flex;gap:6px;flex-wrap:wrap;margin-top:12px;align-items:center}
   .prifilter .lab{font-size:11px;font-family:var(--mono);color:var(--mut);text-transform:uppercase;letter-spacing:.1em;margin-right:4px}
-  .pbtn{font-family:var(--mono);font-size:11px;padding:5px 11px;border-radius:20px;border:1px solid var(--line2);
+  .pbtn,.ibtn{font-family:var(--mono);font-size:11px;padding:5px 11px;border-radius:20px;border:1px solid var(--line2);
     background:var(--panel2);color:var(--mut);cursor:pointer}
   .hint{font-size:12px;color:var(--mut);margin-top:12px;font-style:italic}
 
@@ -246,6 +246,13 @@
           <button class="pbtn" data-pri="Non Critical">Non-critical</button>
           <button class="pbtn" data-pri="Non CIP">Routine</button>
         </div>
+        <div class="prifilter">
+          <span class="lab">Source</span>
+          <button class="ibtn on" id="ib-all" data-init="all">All jobs</button>
+          <button class="ibtn" id="ib-disp" data-init="dispatched">911 / dispatched</button>
+          <button class="ibtn" id="ib-off" data-init="officer">Officer-initiated</button>
+        </div>
+        <div class="hint" id="init-note">“Officer-initiated” covers proactive patrol, inspections and sweeps, plus jobs where a unit was already on scene (no travel). “911 / dispatched” are complaints a unit was sent to and drove to. Inferred from the records, which don't name who started each job.</div>
         <div class="legend" id="legend"></div>
         <div class="hint">In “Live flow” mode, dots brighten as their call comes in and fade over the following 40 minutes, so you can watch the rhythm of a shift.</div>
       </div>
@@ -407,7 +414,7 @@ let markers=[];
 
 /* ---------- state ---------- */
 let calls=[];
-const state={mode:"all",cursor:86399,activeFam:new Set(FAM.map(f=>f[0])),pri:"all",hour:null};
+const state={mode:"all",cursor:86399,activeFam:new Set(FAM.map(f=>f[0])),pri:"all",init:"all",hour:null};
 const WINDOW=40*60;
 
 /* ---------- fetch ---------- */
@@ -479,11 +486,17 @@ function render(code,date){
   buildCritical();
 
   // reset filters
-  state.mode='all';state.cursor=86399;state.activeFam=new Set(FAM.map(f=>f[0]));state.pri='all';state.hour=null;
+  state.mode='all';state.cursor=86399;state.activeFam=new Set(FAM.map(f=>f[0]));state.pri='all';state.init='all';state.hour=null;
   document.getElementById('slider').value=86399;
   document.getElementById('m-all').classList.add('on');document.getElementById('m-flow').classList.remove('on');
   document.querySelectorAll('.pbtn').forEach(x=>{x.classList.remove('on');x.style.color='';x.style.borderColor='';});
   const allBtn=document.querySelector('.pbtn[data-pri="all"]');allBtn.classList.add('on');allBtn.style.color=cssv('--accent');allBtn.style.borderColor=cssv('--accent');
+  // source filter: reset + live counts
+  const offN=calls.filter(isOfficer).length, dispN=calls.length-offN;
+  document.getElementById('ib-disp').textContent=`911 / dispatched · ${dispN}`;
+  document.getElementById('ib-off').textContent=`Officer-initiated · ${offN}`;
+  document.querySelectorAll('.ibtn').forEach(x=>{x.classList.remove('on');x.style.color='';x.style.borderColor='';});
+  const iAll=document.getElementById('ib-all');iAll.classList.add('on');iAll.style.color=cssv('--accent2');iAll.style.borderColor=cssv('--accent2');
   syncLegend(); syncHours(); refresh();
 }
 
@@ -498,19 +511,31 @@ function buildMap(){
   });
   if(markers.length){const g=L.featureGroup(markers); map.fitBounds(g.getBounds().pad(0.12));}
 }
+/* Plain-language response value. On-view / officer-initiated jobs log arrival the same
+   second they're created (rsp ~ 0), so we say so instead of printing a misleading "0.0 min". */
+function respText(c){
+  if(c.rsp==null) return 'no arrival logged';
+  if(c.rsp<=0.2) return 'unit already on scene — no travel';
+  return c.rsp.toFixed(1)+' min to scene';
+}
+/* Inferred source: officer-initiated = proactive patrol/inspections/sweeps, or a unit
+   already on scene with no travel. Everything else is a dispatched call for service.
+   The dataset has no field naming who started the job, so this is a labeled inference. */
+function isOfficer(c){return c.fam==='Patrol/visibility'||c.rsp==null||c.rsp<=0.2;}
 function popup(c){
   const pc=PRI_COLOR[c.pri]||"#888", prLabel=c.pri==="Non CIP"?"Routine":c.pri;
-  const resp=c.rsp!=null?c.rsp.toFixed(1)+" min":"self-cleared";
   return `<div class="pop-ty">${c.ty}</div>
     <div class="pop-row"><span>Time</span><b>${c.tm}</b></div>
     <div class="pop-row"><span>Family</span><b>${c.fam}</b></div>
-    <div class="pop-row"><span>To on scene</span><b>${resp}</b></div>
+    <div class="pop-row"><span>Response</span><b>${respText(c)}</b></div>
     <span class="pchip" style="background:${hex2rgba(pc,.16)};color:${pc};border:1px solid ${hex2rgba(pc,.5)}">${prLabel.toUpperCase()}</span>`;
 }
 
 function visible(c){
   if(!state.activeFam.has(c.fam))return null;
   if(state.pri!=="all"&&c.pri!==state.pri)return null;
+  if(state.init==='dispatched'&&isOfficer(c))return null;
+  if(state.init==='officer'&&!isOfficer(c))return null;
   if(state.hour!==null&&c.h!==state.hour)return null;
   if(state.mode==="flow"){
     if(c.s>state.cursor)return null;
@@ -635,8 +660,9 @@ function buildCritical(){
   if(!crit.length){el.innerHTML='<div class="empty">No jobs were flagged critical on this day.</div>';}
   else crit.forEach(c=>{
     const d=document.createElement('div');d.className='citem';
+    const cr=c.rsp==null?'no arrival':c.rsp<=0.2?'already there':c.rsp.toFixed(1)+' min';
     d.innerHTML=`<div class="ctime">${c.tm.slice(0,5)}</div><div class="cty">${c.ty}</div>
-      <div class="cresp">on scene<br><b>${c.rsp!=null?c.rsp.toFixed(1):'—'} min</b></div>`;
+      <div class="cresp">on scene<br><b>${cr}</b></div>`;
     d.onclick=()=>{if(c.lat&&c.lon){map.setView([c.lat,c.lon],16);markers.find(m=>m._c.id===c.id)?.openPopup();}
       document.getElementById('map').scrollIntoView({behavior:'smooth',block:'center'});};
     el.appendChild(d);
@@ -655,6 +681,15 @@ document.querySelectorAll('.pbtn').forEach(b=>{
     b.classList.add('on');
     const col=b.dataset.pri==="all"?cssv('--accent'):cssv((b.dataset.pri==='Critical'?'--crit':b.dataset.pri==='Serious'?'--serious':b.dataset.pri==='Non Critical'?'--noncrit':'--routine'));
     b.style.color=col;b.style.borderColor=col;
+    refresh();
+  };
+});
+document.querySelectorAll('.ibtn').forEach(b=>{
+  b.onclick=()=>{
+    state.init=b.dataset.init;
+    document.querySelectorAll('.ibtn').forEach(x=>{x.classList.remove('on');x.style.color='';x.style.borderColor='';});
+    b.classList.add('on');
+    const col=cssv('--accent2'); b.style.color=col; b.style.borderColor=col;
     refresh();
   };
 });

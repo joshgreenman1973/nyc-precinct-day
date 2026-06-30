@@ -26,6 +26,10 @@ a response-time analysis, live in the browser.
   no arrest or disposition, and there is no key to link it to the separate NYPD arrests data.
 - **Jobs, not incidents** — one incident can generate several jobs. "Families" are this tool's
   grouping of the raw call descriptions.
+- **Source filter (officer-initiated vs. 911 / dispatched)** is an inference — the dataset has no
+  field naming who started a job. "Officer-initiated" = proactive patrol/inspections/sweeps, or a
+  unit already on scene with no travel; "911 / dispatched" = a complaint a unit was sent to and
+  drove to. Labeled as inferred on the page.
 
 A single day is a snapshot, not a precinct's typical pattern.
 
