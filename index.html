@@ -123,6 +123,7 @@
   .m311{width:7px;height:7px;background:rgba(200,214,230,.3);border:1px solid rgba(230,240,252,.55);
     transform:rotate(45deg)}
   .ov-note{font-size:11px;color:var(--mut);font-style:italic;margin-left:2px}
+  .ovbtn:disabled{opacity:.4;cursor:default}
   .hint{font-size:12px;color:var(--mut);margin-top:12px;font-style:italic}
 
   .bar-row{display:grid;grid-template-columns:170px 1fr 64px;align-items:center;gap:12px;margin:7px 0;cursor:pointer}
@@ -258,9 +259,11 @@
         </div>
         <div class="hint" id="init-note">“Officer-initiated” covers proactive patrol, inspections and sweeps, plus jobs where a unit was already on scene (no travel). “911 / dispatched” are complaints a unit was sent to and drove to. Inferred from the records, which don't name who started each job.</div>
         <div class="prifilter">
-          <span class="lab">Overlay</span>
-          <button class="ovbtn" id="ov311">◆ 311 requests · <span id="n311count">…</span></button>
-          <span class="ov-note">non-emergency reports, same day, clipped to this precinct</span>
+          <span class="lab">Layers</span>
+          <button class="ovbtn on" id="lm-911" data-lm="911">911 calls</button>
+          <button class="ovbtn" id="lm-both" data-lm="both" disabled>Both</button>
+          <button class="ovbtn" id="lm-311" data-lm="311" disabled>◆ 311 only · <span id="n311count">…</span></button>
+          <span class="ov-note">311 = non-emergency reports, same day, this precinct</span>
         </div>
         <div class="legend" id="legend"></div>
         <div class="hint">In “Live flow” mode, dots brighten as their call comes in and fade over the following 40 minutes, so you can watch the rhythm of a shift. When the 311 overlay is on, those reports appear on their own timestamps too — and clicking an hour filters both layers.</div>
@@ -457,7 +460,7 @@ function pointInGeom(x,y,g){
 
 /* ---------- state ---------- */
 let calls=[];
-const state={mode:"all",cursor:86399,activeFam:new Set(FAM.map(f=>f[0])),pri:"all",init:"all",hour:null,show311:false};
+const state={mode:"all",cursor:86399,activeFam:new Set(FAM.map(f=>f[0])),pri:"all",init:"all",hour:null,layerMode:"911"};
 const WINDOW=40*60;
 
 /* ---------- fetch ---------- */
@@ -553,6 +556,7 @@ function buildMap(){
       color:famColor[c.fam]||"#888",weight:1,fillColor:famColor[c.fam]||"#888",fillOpacity:.82,opacity:.9});
     m.bindPopup(popup(c)); m._c=c; markers.push(m); m.addTo(layer);
   });
+  if(!map.hasLayer(layer)) layer.addTo(map);
   if(markers.length){const g=L.featureGroup(markers); map.fitBounds(g.getBounds().pad(0.12));}
 }
 /* Plain-language response value. On-view / officer-initiated jobs log arrival the same
@@ -602,12 +606,13 @@ function refresh(){
       shown++;
     }
   });
-  refresh311();
-  updateClock(shown);
+  const shown311=refresh311();
+  updateClock(state.layerMode==='311'?shown311:shown);
 }
 /* 311 diamonds follow the same time controls (hour filter + Live-flow cursor). */
 function refresh311(){
-  if(!state.show311) return;
+  if(state.layerMode==='911') return 0;
+  let n=0;
   markers311.forEach(m=>{
     const r=m._r; let show=true, op=1;
     if(state.hour!==null && r.h!==state.hour) show=false;
@@ -616,15 +621,17 @@ function refresh311(){
       else { const age=state.cursor-r.s; op = age>WINDOW?0.4:(1-(age/WINDOW)*0.6); }
     }
     if(!show){ if(layer311.hasLayer(m)) layer311.removeLayer(m); }
-    else { if(!layer311.hasLayer(m)) layer311.addLayer(m); m.setOpacity(op); }
+    else { if(!layer311.hasLayer(m)) layer311.addLayer(m); m.setOpacity(op); n++; }
   });
+  return n;
 }
 function updateClock(shown){
   const cl=document.getElementById('clock'),sub=document.getElementById('clocksub');
   if(state.mode==="all"&&state.hour===null)cl.textContent="All day";
   else if(state.hour!==null)cl.textContent=String(state.hour).padStart(2,'0')+":00";
   else{const h=Math.floor(state.cursor/3600),mm=Math.floor((state.cursor%3600)/60);cl.textContent=String(h).padStart(2,'0')+":"+String(mm).padStart(2,'0');}
-  sub.textContent=shown+" job"+(shown===1?"":"s")+" on map";
+  const noun=state.layerMode==='311'?(" 311 report"+(shown===1?"":"s")):(" job"+(shown===1?"":"s"));
+  sub.textContent=shown+noun+" on map";
   const p=(state.cursor/86399)*100;
   document.getElementById('slider').style.background=`linear-gradient(90deg,var(--accent) ${p}%,#22303f ${p}%)`;
 }
@@ -742,13 +749,14 @@ function popup311(r){
 }
 async function load311(code,date){
   // reset 311 state + UI
-  n311=[]; markers311=[]; state.show311=false; precinctGeom=null;
+  n311=[]; markers311=[]; state.layerMode='911'; precinctGeom=null;
   layer311.clearLayers(); if(map.hasLayer(layer311)) map.removeLayer(layer311);
   if(outlineLayer){map.removeLayer(outlineLayer);outlineLayer=null;}
-  const btn=document.getElementById('ov311');
-  btn.classList.remove('on'); btn.style.color=''; btn.style.borderColor='';
   document.getElementById('n311count').textContent='…';
   document.getElementById('sec311').style.display='none';
+  document.getElementById('lm-both').disabled=true;
+  document.getElementById('lm-311').disabled=true;
+  setLayerMode('911');
   try{
     const pg=await fetch(`https://data.cityofnewyork.us/resource/y76i-bdw7.geojson?$where=precinct=${code}`).then(r=>r.json());
     if(!pg.features||!pg.features.length){document.getElementById('n311count').textContent='n/a';return;}
@@ -771,6 +779,10 @@ async function load311(code,date){
     });
     document.getElementById('n311count').textContent=n311.length;
     build311Section(date);
+    const has=n311.length>0;
+    document.getElementById('lm-both').disabled=!has;
+    document.getElementById('lm-311').disabled=!has;
+    setLayerMode(state.layerMode);
   }catch(e){ document.getElementById('n311count').textContent='n/a'; }
 }
 function build311Section(date){
@@ -799,13 +811,17 @@ function build311Section(date){
   }
   sec.style.display='';
 }
-document.getElementById('ov311').onclick=()=>{
-  const btn=document.getElementById('ov311');
-  if(!n311.length) return;
-  state.show311=!state.show311;
-  if(state.show311){ layer311.addTo(map); btn.classList.add('on'); btn.style.color=cssv('--noncrit'); btn.style.borderColor=cssv('--noncrit'); refresh311(); }
-  else { map.removeLayer(layer311); btn.classList.remove('on'); btn.style.color=''; btn.style.borderColor=''; }
-};
+function setLayerMode(mode){
+  state.layerMode=mode;
+  const show911=mode!=='311', show311=mode!=='911';
+  if(show911){ if(!map.hasLayer(layer)) layer.addTo(map); } else { if(map.hasLayer(layer)) map.removeLayer(layer); }
+  if(show311 && markers311.length){ if(!map.hasLayer(layer311)) layer311.addTo(map); } else { if(map.hasLayer(layer311)) map.removeLayer(layer311); }
+  document.querySelectorAll('.ovbtn').forEach(b=>{b.classList.remove('on');b.style.color='';b.style.borderColor='';});
+  const active=document.querySelector(`.ovbtn[data-lm="${mode}"]`);
+  if(active){active.classList.add('on');const col=mode==='911'?cssv('--accent'):cssv('--noncrit');active.style.color=col;active.style.borderColor=col;}
+  refresh();
+}
+document.querySelectorAll('.ovbtn').forEach(b=>b.onclick=()=>{ if(!b.disabled) setLayerMode(b.dataset.lm); });
 
 /* ---------- controls wiring ---------- */
 document.querySelectorAll('.pbtn').forEach(b=>{

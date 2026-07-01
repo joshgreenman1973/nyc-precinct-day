@@ -15,7 +15,9 @@ a response-time analysis, live in the browser.
 
 ## 311 overlay
 
-Toggle a same-day **311 (non-emergency) layer** over the police calls. 311 requests
+A three-way **Layers** control — **911 calls** (default) / **Both** / **311 only** — shows a
+same-day **311 (non-emergency) layer** alongside or instead of the police calls. Both layers
+follow the same time controls (hour filter + Live-flow scrubber). 311 requests
 ([dataset `erm2-nwe9`](https://data.cityofnewyork.us/Social-Services/311-Service-Requests-from-2020-to-Present/erm2-nwe9))
 carry no precinct field, so they are clipped to the precinct's official boundary
 ([`y76i-bdw7`](https://data.cityofnewyork.us/City-Government/Police-Precincts/y76i-bdw7)) by
