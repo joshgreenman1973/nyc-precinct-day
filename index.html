@@ -263,7 +263,7 @@
           <span class="ov-note">non-emergency reports, same day, clipped to this precinct</span>
         </div>
         <div class="legend" id="legend"></div>
-        <div class="hint">In “Live flow” mode, dots brighten as their call comes in and fade over the following 40 minutes, so you can watch the rhythm of a shift.</div>
+        <div class="hint">In “Live flow” mode, dots brighten as their call comes in and fade over the following 40 minutes, so you can watch the rhythm of a shift. When the 311 overlay is on, those reports appear on their own timestamps too — and clicking an hour filters both layers.</div>
       </div>
     </div>
   </div>
@@ -432,7 +432,7 @@ L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',
 map.createPane('p311'); map.getPane('p311').style.zIndex=350; // below the 911 dots (overlayPane=400)
 let layer=L.layerGroup().addTo(map);
 let markers=[];
-let layer311=L.layerGroup(); let outlineLayer=null; let n311=[]; let precinctGeom=null;
+let layer311=L.layerGroup(); let markers311=[]; let outlineLayer=null; let n311=[]; let precinctGeom=null;
 
 /* point-in-polygon (ray casting), handles Polygon + MultiPolygon with holes. x=lon, y=lat */
 function pointInRing(x,y,ring){
@@ -602,8 +602,22 @@ function refresh(){
       shown++;
     }
   });
-  // also count non-geocoded under current non-spatial filters for the label honesty
+  refresh311();
   updateClock(shown);
+}
+/* 311 diamonds follow the same time controls (hour filter + Live-flow cursor). */
+function refresh311(){
+  if(!state.show311) return;
+  markers311.forEach(m=>{
+    const r=m._r; let show=true, op=1;
+    if(state.hour!==null && r.h!==state.hour) show=false;
+    else if(state.mode==='flow'){
+      if(r.s>state.cursor) show=false;
+      else { const age=state.cursor-r.s; op = age>WINDOW?0.4:(1-(age/WINDOW)*0.6); }
+    }
+    if(!show){ if(layer311.hasLayer(m)) layer311.removeLayer(m); }
+    else { if(!layer311.hasLayer(m)) layer311.addLayer(m); m.setOpacity(op); }
+  });
 }
 function updateClock(shown){
   const cl=document.getElementById('clock'),sub=document.getElementById('clocksub');
@@ -728,7 +742,7 @@ function popup311(r){
 }
 async function load311(code,date){
   // reset 311 state + UI
-  n311=[]; state.show311=false; precinctGeom=null;
+  n311=[]; markers311=[]; state.show311=false; precinctGeom=null;
   layer311.clearLayers(); if(map.hasLayer(layer311)) map.removeLayer(layer311);
   if(outlineLayer){map.removeLayer(outlineLayer);outlineLayer=null;}
   const btn=document.getElementById('ov311');
@@ -747,10 +761,13 @@ async function load311(code,date){
     const url=`https://data.cityofnewyork.us/resource/erm2-nwe9.json?$select=unique_key,created_date,complaint_type,descriptor,agency,status,latitude,longitude&$where=${encodeURIComponent(where)}&$limit=8000`;
     const raw=await fetch(url).then(r=>r.json());
     n311=raw.filter(r=>r.latitude&&r.longitude&&pointInGeom(+r.longitude,+r.latitude,precinctGeom))
-      .map(r=>({tm:(r.created_date||'').slice(11,16),ct:r.complaint_type||'—',ds:r.descriptor||'',ag:r.agency||'',st:r.status||'',lat:+r.latitude,lon:+r.longitude}));
-    n311.forEach(r=>{
+      .map(r=>{
+        const t=(r.created_date||'').slice(11,19), hh=+t.slice(0,2)||0, mm=+t.slice(3,5)||0, ss=+t.slice(6,8)||0;
+        return {tm:t.slice(0,5),s:hh*3600+mm*60+ss,h:hh,ct:r.complaint_type||'—',ds:r.descriptor||'',ag:r.agency||'',st:r.status||'',lat:+r.latitude,lon:+r.longitude};
+      });
+    markers311=n311.map(r=>{
       const m=L.marker([r.lat,r.lon],{pane:'p311',icon:L.divIcon({className:'',html:'<div class="m311"></div>',iconSize:[9,9],iconAnchor:[4,4]}),interactive:true});
-      m.bindPopup(popup311(r)); layer311.addLayer(m);
+      m.bindPopup(popup311(r)); m._r=r; layer311.addLayer(m); return m;
     });
     document.getElementById('n311count').textContent=n311.length;
     build311Section(date);
@@ -786,7 +803,7 @@ document.getElementById('ov311').onclick=()=>{
   const btn=document.getElementById('ov311');
   if(!n311.length) return;
   state.show311=!state.show311;
-  if(state.show311){ layer311.addTo(map); btn.classList.add('on'); btn.style.color=cssv('--noncrit'); btn.style.borderColor=cssv('--noncrit'); }
+  if(state.show311){ layer311.addTo(map); btn.classList.add('on'); btn.style.color=cssv('--noncrit'); btn.style.borderColor=cssv('--noncrit'); refresh311(); }
   else { map.removeLayer(layer311); btn.classList.remove('on'); btn.style.color=''; btn.style.borderColor=''; }
 };
 
