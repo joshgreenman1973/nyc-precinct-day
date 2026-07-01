@@ -491,8 +491,9 @@ async function load(){
   setStatus('load',`<span class="spin"></span>Querying NYC Open Data — ${ordinal(+code)} Precinct, ${date}…`);
   const where=`nypd_pct_cd='${code}' AND incident_date='${date}T00:00:00'`;
   const url=`https://data.cityofnewyork.us/resource/n2zq-pubd.json?$where=${encodeURIComponent(where)}&$limit=20000&$order=incident_time`;
+  const ctrl=new AbortController(); const to=setTimeout(()=>ctrl.abort(),15000);
   try{
-    const res=await fetch(url);
+    const res=await fetch(url,{signal:ctrl.signal});
     if(!res.ok) throw new Error('HTTP '+res.status);
     const raw=await res.json();
     calls=raw.map(r=>{
@@ -510,16 +511,20 @@ async function load(){
     });
     if(!calls.length){
       setStatus('err',`No jobs found for the ${ordinal(+code)} Precinct on ${date}. Try another day.`);
-      document.getElementById('app').classList.add('dim');
-      loadBtn.disabled=false; return;
+      return;
     }
     setStatus('','');
     render(code,date);
     load311(code,date);
   }catch(e){
-    setStatus('err','Could not reach NYC Open Data ('+e.message+'). Check your connection and try again.');
+    const msg = e.name==='AbortError'
+      ? "NYC Open Data didn't respond within 15 seconds. This is almost always a network, VPN or firewall block on your side — not this page. Try a different network (like your phone's data)."
+      : 'Could not reach NYC Open Data ('+e.message+'). Check your connection and try again.';
+    setStatus('err',msg);
   }finally{
+    clearTimeout(to);
     loadBtn.disabled=false;
+    document.getElementById('app').classList.remove('dim'); // never leave the page stuck dimmed
   }
 }
 
