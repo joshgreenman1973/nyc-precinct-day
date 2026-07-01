@@ -84,6 +84,15 @@
 
   .mapcard{border:1px solid var(--line2);border-radius:14px;overflow:hidden;background:var(--panel)}
   #map{height:520px;width:100%;background:#0a0e13;z-index:1}
+  .map-wrap{position:relative}
+  .mapempty{position:absolute;inset:0;display:none;align-items:center;justify-content:center;z-index:1200;pointer-events:none}
+  .mapempty.show{display:flex}
+  .me-inner{background:rgba(14,20,28,.94);border:1px solid var(--line2);border-radius:12px;padding:18px 22px;
+    text-align:center;max-width:360px;pointer-events:auto;box-shadow:0 14px 44px rgba(0,0,0,.55)}
+  .me-inner h4{font-size:15px;margin:0 0 6px}
+  .me-inner p{font-size:12px;color:var(--mut);margin:0 0 13px;font-family:var(--mono);line-height:1.5}
+  .me-inner button{background:var(--accent);color:#04201d;border:none;border-radius:8px;padding:8px 16px;font-size:13px;font-weight:650;cursor:pointer}
+  .me-inner button:hover{filter:brightness(1.08)}
   .leaflet-container{background:#0a0e13;font-family:var(--sans)}
   .leaflet-popup-content-wrapper{background:#0e141c;color:var(--ink);border:1px solid var(--line2);border-radius:10px;box-shadow:0 12px 40px rgba(0,0,0,.5)}
   .leaflet-popup-tip{background:#0e141c;border:1px solid var(--line2)}
@@ -232,7 +241,14 @@
     <h2 class="sec-t">Where the calls came from</h2>
     <p class="sec-d">Each dot is one dispatched job, placed at the location the radio run was logged and colored by what kind of call it was. Press play to sweep through the 24 hours, or drag the slider. Tap the colored chips to isolate a call type, and click any dot for the details.</p>
     <div class="mapcard">
-      <div id="map"></div>
+      <div class="map-wrap">
+        <div id="map"></div>
+        <div id="mapempty" class="mapempty"><div class="me-inner">
+          <h4>Nothing matches these filters</h4>
+          <p id="me-detail"></p>
+          <button id="me-clear">Clear filters</button>
+        </div></div>
+      </div>
       <div class="controls">
         <div class="timerow">
           <button class="playbtn" id="play" aria-label="Play the day">▶</button>
@@ -588,10 +604,45 @@ function visible(c){
   if(state.mode==="flow"){
     if(c.s>state.cursor)return null;
     const age=state.cursor-c.s;
-    if(age>WINDOW)return 0.16;
-    return 1-(age/WINDOW)*0.7;
+    if(age>WINDOW)return 0.38;
+    return 1-(age/WINDOW)*0.62;
   }
   return 0.82;
+}
+/* does a 911 job match the NON-time filters (family/priority/source/hour)? — ignores the flow cursor,
+   so we can tell a genuinely-empty filter combo apart from "the animation hasn't reached it yet". */
+function matchesFilters(c){
+  if(!state.activeFam.has(c.fam)) return false;
+  if(state.pri!=='all'&&c.pri!==state.pri) return false;
+  if(state.init==='dispatched'&&isOfficer(c)) return false;
+  if(state.init==='officer'&&!isOfficer(c)) return false;
+  if(state.hour!==null&&c.h!==state.hour) return false;
+  return true;
+}
+function describeFilters(){
+  const priLbl={'Critical':'Critical','Serious':'Serious','Non Critical':'Non-critical','Non CIP':'Routine'};
+  const parts=[];
+  if(state.layerMode==='311'){
+    if(state.hour!==null) parts.push('Hour '+String(state.hour).padStart(2,'0')+':00');
+    return parts.length?('No 311 reports in '+parts.join(' + ')+' this day.'):'No 311 reports to show.';
+  }
+  if(state.pri!=='all') parts.push('Priority: '+priLbl[state.pri]);
+  const liveFams=FAM.map(f=>f[0]).filter(n=>calls.some(c=>c.fam===n));
+  if(state.activeFam.size<liveFams.length) parts.push('Type: '+[...state.activeFam].filter(n=>liveFams.includes(n)).join(', '));
+  if(state.init==='dispatched') parts.push('Source: 911 / dispatched');
+  if(state.init==='officer') parts.push('Source: Officer-initiated');
+  if(state.hour!==null) parts.push('Hour '+String(state.hour).padStart(2,'0')+':00');
+  return parts.length?('No calls this day match — '+parts.join(' + ')+'.'):'No calls to show.';
+}
+function clearFilters(){
+  state.activeFam=new Set(FAM.map(f=>f[0]));
+  state.pri='all'; state.init='all'; state.hour=null;
+  document.querySelectorAll('.pbtn').forEach(x=>{x.classList.remove('on');x.style.color='';x.style.borderColor='';});
+  const pa=document.querySelector('.pbtn[data-pri="all"]'); pa.classList.add('on'); pa.style.color=cssv('--accent'); pa.style.borderColor=cssv('--accent');
+  document.querySelectorAll('.ibtn').forEach(x=>{x.classList.remove('on');x.style.color='';x.style.borderColor='';});
+  const ia=document.getElementById('ib-all'); ia.classList.add('on'); ia.style.color=cssv('--accent2'); ia.style.borderColor=cssv('--accent2');
+  syncLegend(); syncHours();
+  setMode('all'); // resets flow + calls refresh()
 }
 function refresh(){
   let shown=0;
@@ -607,6 +658,13 @@ function refresh(){
     }
   });
   const shown311=refresh311();
+  // empty-state: does the filter combo match anything at all (regardless of the animation position)?
+  const filterCount = state.layerMode==='311'
+    ? (state.hour!==null ? markers311.filter(m=>m._r.h===state.hour).length : markers311.length)
+    : calls.filter(matchesFilters).length;
+  const em=document.getElementById('mapempty');
+  if(filterCount===0 && calls.length){ em.classList.add('show'); document.getElementById('me-detail').textContent=describeFilters(); }
+  else em.classList.remove('show');
   updateClock(state.layerMode==='311'?shown311:shown);
 }
 /* 311 diamonds follow the same time controls (hour filter + Live-flow cursor). */
@@ -865,6 +923,7 @@ function play(){
 function stop(){if(timer){clearInterval(timer);timer=null;}playBtn.textContent='▶';playBtn.classList.remove('on');}
 playBtn.onclick=()=>{timer?stop():play();};
 document.getElementById('aibtn').onclick=()=>document.getElementById('aipop').classList.toggle('show');
+document.getElementById('me-clear').onclick=clearFilters;
 
 loadBtn.onclick=load;
 document.getElementById('rand').onclick=()=>{
