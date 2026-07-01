@@ -40,8 +40,7 @@
   .sub{font-size:clamp(15px,2.1vw,19px);color:var(--mut);max-width:680px}
 
   /* control bar */
-  .controlbar{position:sticky;top:0;z-index:500;background:rgba(11,15,20,.92);
-    backdrop-filter:blur(10px);border-bottom:1px solid var(--line2);padding:14px 0}
+  .controlbar{position:sticky;top:0;z-index:500;background:#0b0f14;border-bottom:1px solid var(--line2);padding:14px 0}
   .cbrow{display:flex;flex-wrap:wrap;gap:12px;align-items:flex-end}
   .field{display:flex;flex-direction:column;gap:5px}
   .field label{font-family:var(--mono);font-size:10.5px;letter-spacing:.12em;text-transform:uppercase;color:var(--mut)}
@@ -65,6 +64,8 @@
   #status.show{display:block}
   #status.load{background:#0c1830;border:1px solid #1c2f52;color:#bcd0ee}
   #status.err{background:#3a0d14;border:1px solid #5e1822;color:#ff9aa6}
+  #status.ok{background:#0d2b22;border:1px solid #17493a;color:#9fe8d0}
+  .headline{scroll-margin-top:170px}
   .spin{display:inline-block;width:13px;height:13px;border:2px solid #2a4a78;border-top-color:var(--accent2);
     border-radius:50%;animation:sp .7s linear infinite;vertical-align:-2px;margin-right:8px}
   @keyframes sp{to{transform:rotate(360deg)}}
@@ -483,10 +484,11 @@ const WINDOW=40*60;
 /* ---------- fetch ---------- */
 const loadBtn=document.getElementById('load'), statusEl=document.getElementById('status');
 function setStatus(kind,html){statusEl.className=kind?('show '+kind):'';statusEl.innerHTML=html;}
-async function load(){
+async function load(auto){
   const code=pctSel.value, date=document.getElementById('date').value;
   if(!date){setStatus('err','Please choose a date in 2025.');return;}
-  loadBtn.disabled=true; document.getElementById('app').classList.add('dim');
+  loadBtn.disabled=true; loadBtn.textContent='Loading…';
+  document.getElementById('app').classList.add('dim');
   document.getElementById('stats').style.display='none';
   setStatus('load',`<span class="spin"></span>Querying NYC Open Data — ${ordinal(+code)} Precinct, ${date}…`);
   const where=`nypd_pct_cd='${code}' AND incident_date='${date}T00:00:00'`;
@@ -513,8 +515,11 @@ async function load(){
       setStatus('err',`No jobs found for the ${ordinal(+code)} Precinct on ${date}. Try another day.`);
       return;
     }
-    setStatus('','');
-    render(code,date);
+    try{ render(code,date); }
+    catch(re){ setStatus('err','The data loaded, but the page failed to draw it: '+re.message); return; }
+    setStatus('ok',`✓ Loaded ${calls.length} jobs — ${ordinal(+code)} Precinct, ${date}. Results below.`);
+    clearTimeout(window.__okT); window.__okT=setTimeout(()=>{ if(statusEl.classList.contains('ok')) setStatus('',''); },5000);
+    if(!auto) document.getElementById('headline').scrollIntoView({behavior:'smooth',block:'start'});
     load311(code,date);
   }catch(e){
     const msg = e.name==='AbortError'
@@ -523,7 +528,7 @@ async function load(){
     setStatus('err',msg);
   }finally{
     clearTimeout(to);
-    loadBtn.disabled=false;
+    loadBtn.disabled=false; loadBtn.textContent='Load the day';
     document.getElementById('app').classList.remove('dim'); // never leave the page stuck dimmed
   }
 }
@@ -931,7 +936,7 @@ playBtn.onclick=()=>{timer?stop():play();};
 document.getElementById('aibtn').onclick=()=>document.getElementById('aipop').classList.toggle('show');
 document.getElementById('me-clear').onclick=clearFilters;
 
-loadBtn.onclick=load;
+loadBtn.onclick=()=>load();
 document.getElementById('rand').onclick=()=>{
   const code=ALL_CODES[Math.floor(Math.random()*ALL_CODES.length)];
   const day=1+Math.floor(Math.random()*365);
@@ -943,7 +948,7 @@ document.getElementById('rand').onclick=()=>{
 window.addEventListener('keydown',e=>{if(e.key==='Enter'&&document.activeElement.tagName!=='BUTTON')load();});
 
 /* initial load */
-load();
+load(true);
 </script>
 </body>
 </html>
