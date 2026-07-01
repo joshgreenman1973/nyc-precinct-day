@@ -118,8 +118,11 @@
   .lchip.off{opacity:.32}
   .prifilter{display:flex;gap:6px;flex-wrap:wrap;margin-top:12px;align-items:center}
   .prifilter .lab{font-size:11px;font-family:var(--mono);color:var(--mut);text-transform:uppercase;letter-spacing:.1em;margin-right:4px}
-  .pbtn,.ibtn{font-family:var(--mono);font-size:11px;padding:5px 11px;border-radius:20px;border:1px solid var(--line2);
+  .pbtn,.ibtn,.ovbtn{font-family:var(--mono);font-size:11px;padding:5px 11px;border-radius:20px;border:1px solid var(--line2);
     background:var(--panel2);color:var(--mut);cursor:pointer}
+  .m311{width:7px;height:7px;background:rgba(200,214,230,.3);border:1px solid rgba(230,240,252,.55);
+    transform:rotate(45deg)}
+  .ov-note{font-size:11px;color:var(--mut);font-style:italic;margin-left:2px}
   .hint{font-size:12px;color:var(--mut);margin-top:12px;font-style:italic}
 
   .bar-row{display:grid;grid-template-columns:170px 1fr 64px;align-items:center;gap:12px;margin:7px 0;cursor:pointer}
@@ -254,6 +257,11 @@
           <button class="ibtn" id="ib-off" data-init="officer">Officer-initiated</button>
         </div>
         <div class="hint" id="init-note">“Officer-initiated” covers proactive patrol, inspections and sweeps, plus jobs where a unit was already on scene (no travel). “911 / dispatched” are complaints a unit was sent to and drove to. Inferred from the records, which don't name who started each job.</div>
+        <div class="prifilter">
+          <span class="lab">Overlay</span>
+          <button class="ovbtn" id="ov311">◆ 311 requests · <span id="n311count">…</span></button>
+          <span class="ov-note">non-emergency reports, same day, clipped to this precinct</span>
+        </div>
         <div class="legend" id="legend"></div>
         <div class="hint">In “Live flow” mode, dots brighten as their call comes in and fade over the following 40 minutes, so you can watch the rhythm of a shift.</div>
       </div>
@@ -277,6 +285,15 @@
     <h2 class="sec-t" id="fam-title">Calls sorted into families</h2>
     <p class="sec-d" id="fam-desc">Every distinct call description on this day, grouped into families. Click a family to isolate it on the map.</p>
     <div id="fams"></div>
+  </div>
+</section>
+
+<section id="sec311" style="display:none">
+  <div class="wrap">
+    <div class="sec-h">The other hotline</div>
+    <h2 class="sec-t">What went to 311 that same day</h2>
+    <p class="sec-d" id="d311"></p>
+    <div id="fams311"></div>
   </div>
 </section>
 
@@ -328,6 +345,7 @@
         <li><b>Medians, not means.</b> A handful of low-priority jobs can sit in queue for hours and badly skew averages; medians are the honest central measure.</li>
         <li><b>No outcomes.</b> This dataset records each job's type, times, location and priority — but carries <b>no arrest or disposition</b>. It cannot tell you how a call was resolved, and there is no key to link it to the separate NYPD arrests data.</li>
         <li><b>Jobs, not incidents.</b> One incident can generate several jobs. “Families” are this tool's grouping of the raw call descriptions.</li>
+        <li><b>311 overlay:</b> non-emergency 311 service requests (dataset <span class="mono">erm2-nwe9</span>) created on the same calendar day. 311 records carry no precinct field, so they are clipped to the precinct's official boundary (<span class="mono">y76i-bdw7</span>) by point-in-polygon — a request counts if its coordinates fall inside this precinct. 911 and 311 are separate systems and are not linked at the record level; this is a same-day, same-place comparison, not a matched one.</li>
       </ul>
       <button class="aibtn" id="aibtn">⚠ AI caution — read before sharing</button>
       <div class="aipop" id="aipop">
@@ -411,12 +429,35 @@ const TRAVEL=c=>c.rsp!=null&&c.rsp>0.2;
 const map=L.map('map',{zoomControl:true,gestureHandling:true}).setView([40.70,-73.92],11);
 L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',
   {attribution:'© OpenStreetMap © CARTO',subdomains:'abcd',maxZoom:19}).addTo(map);
+map.createPane('p311'); map.getPane('p311').style.zIndex=350; // below the 911 dots (overlayPane=400)
 let layer=L.layerGroup().addTo(map);
 let markers=[];
+let layer311=L.layerGroup(); let outlineLayer=null; let n311=[]; let precinctGeom=null;
+
+/* point-in-polygon (ray casting), handles Polygon + MultiPolygon with holes. x=lon, y=lat */
+function pointInRing(x,y,ring){
+  let inside=false;
+  for(let i=0,j=ring.length-1;i<ring.length;j=i++){
+    const xi=ring[i][0],yi=ring[i][1],xj=ring[j][0],yj=ring[j][1];
+    if(((yi>y)!==(yj>y))&&(x<(xj-xi)*(y-yi)/(yj-yi)+xi)) inside=!inside;
+  }
+  return inside;
+}
+function pointInPoly(x,y,poly){
+  if(!pointInRing(x,y,poly[0])) return false;
+  for(let k=1;k<poly.length;k++) if(pointInRing(x,y,poly[k])) return false; // in a hole
+  return true;
+}
+function pointInGeom(x,y,g){
+  if(!g) return true;
+  if(g.type==='Polygon') return pointInPoly(x,y,g.coordinates);
+  if(g.type==='MultiPolygon') return g.coordinates.some(p=>pointInPoly(x,y,p));
+  return false;
+}
 
 /* ---------- state ---------- */
 let calls=[];
-const state={mode:"all",cursor:86399,activeFam:new Set(FAM.map(f=>f[0])),pri:"all",init:"all",hour:null};
+const state={mode:"all",cursor:86399,activeFam:new Set(FAM.map(f=>f[0])),pri:"all",init:"all",hour:null,show311:false};
 const WINDOW=40*60;
 
 /* ---------- fetch ---------- */
@@ -454,6 +495,7 @@ async function load(){
     }
     setStatus('','');
     render(code,date);
+    load311(code,date);
   }catch(e){
     setStatus('err','Could not reach NYC Open Data ('+e.message+'). Check your connection and try again.');
   }finally{
@@ -674,6 +716,79 @@ function buildCritical(){
   document.getElementById('serious-note').textContent=ser.length?
     `Also logged: ${ser.length} “serious” jobs — mostly ${top.map(t=>t[0].toLowerCase()+' ('+t[1]+')').join(', ')}.`:'';
 }
+
+/* ---------- 311 overlay (same day, clipped to precinct) ---------- */
+function popup311(r){
+  return `<div class="pop-ty">311 · ${r.ct}</div>
+    ${r.ds?`<div class="pop-row"><span>Detail</span><b>${r.ds}</b></div>`:''}
+    <div class="pop-row"><span>Time</span><b>${r.tm||'—'}</b></div>
+    <div class="pop-row"><span>Agency</span><b>${r.ag||'—'}</b></div>
+    <div class="pop-row"><span>Status</span><b>${r.st||'—'}</b></div>
+    <span class="pchip" style="background:${hex2rgba(cssv('--noncrit'),.16)};color:${cssv('--noncrit')};border:1px solid ${hex2rgba(cssv('--noncrit'),.5)}">311 · NON-EMERGENCY</span>`;
+}
+async function load311(code,date){
+  // reset 311 state + UI
+  n311=[]; state.show311=false; precinctGeom=null;
+  layer311.clearLayers(); if(map.hasLayer(layer311)) map.removeLayer(layer311);
+  if(outlineLayer){map.removeLayer(outlineLayer);outlineLayer=null;}
+  const btn=document.getElementById('ov311');
+  btn.classList.remove('on'); btn.style.color=''; btn.style.borderColor='';
+  document.getElementById('n311count').textContent='…';
+  document.getElementById('sec311').style.display='none';
+  try{
+    const pg=await fetch(`https://data.cityofnewyork.us/resource/y76i-bdw7.geojson?$where=precinct=${code}`).then(r=>r.json());
+    if(!pg.features||!pg.features.length){document.getElementById('n311count').textContent='n/a';return;}
+    precinctGeom=pg.features[0].geometry;
+    outlineLayer=L.geoJSON(pg,{style:{color:'#5aa9ff',weight:1.2,opacity:.45,fill:false,dashArray:'4 5'}}).addTo(map);
+    // bbox of precinct
+    let minLat=90,maxLat=-90,minLon=180,maxLon=-180;
+    (function scan(cs){cs.forEach(c=>{if(Array.isArray(c[0]))scan(c);else{const lo=c[0],la=c[1];if(la<minLat)minLat=la;if(la>maxLat)maxLat=la;if(lo<minLon)minLon=lo;if(lo>maxLon)maxLon=lo;}});})(precinctGeom.coordinates);
+    const where=`created_date between '${date}T00:00:00' and '${date}T23:59:59' and latitude between ${minLat} and ${maxLat} and longitude between ${minLon} and ${maxLon}`;
+    const url=`https://data.cityofnewyork.us/resource/erm2-nwe9.json?$select=unique_key,created_date,complaint_type,descriptor,agency,status,latitude,longitude&$where=${encodeURIComponent(where)}&$limit=8000`;
+    const raw=await fetch(url).then(r=>r.json());
+    n311=raw.filter(r=>r.latitude&&r.longitude&&pointInGeom(+r.longitude,+r.latitude,precinctGeom))
+      .map(r=>({tm:(r.created_date||'').slice(11,16),ct:r.complaint_type||'—',ds:r.descriptor||'',ag:r.agency||'',st:r.status||'',lat:+r.latitude,lon:+r.longitude}));
+    n311.forEach(r=>{
+      const m=L.marker([r.lat,r.lon],{pane:'p311',icon:L.divIcon({className:'',html:'<div class="m311"></div>',iconSize:[9,9],iconAnchor:[4,4]}),interactive:true});
+      m.bindPopup(popup311(r)); layer311.addLayer(m);
+    });
+    document.getElementById('n311count').textContent=n311.length;
+    build311Section(date);
+  }catch(e){ document.getElementById('n311count').textContent='n/a'; }
+}
+function build311Section(date){
+  const sec=document.getElementById('sec311');
+  if(!n311.length){sec.style.display='none';return;}
+  const counts={}; n311.forEach(r=>counts[r.ct]=(counts[r.ct]||0)+1);
+  const arr=Object.entries(counts).sort((a,b)=>b[1]-a[1]);
+  const top=arr.slice(0,10), maxV=Math.max(...top.map(d=>d[1]),1);
+  const c911=calls.length;
+  document.getElementById('d311').innerHTML=
+    `The same precinct on the same day generated <b>${n311.length}</b> non-emergency 311 requests, alongside its <b>${c911}</b> police jobs — a different picture of what a neighborhood asks the city for. 311 handles quality-of-life reports: parking, heat and hot water, noise, sanitation. Toggle “311 requests” on the map above to see them as diamonds over the police calls.`;
+  const el=document.getElementById('fams311'); el.innerHTML='';
+  const col=cssv('--noncrit');
+  top.forEach(([n,v])=>{
+    const row=document.createElement('div'); row.className='bar-row'; row.style.cursor='default';
+    row.innerHTML=`<div class="nm">${n}</div>
+      <div class="bar-track"><div class="bar-fill" style="width:0;background:${col}"></div></div>
+      <div class="vl">${v} · ${(v/n311.length*100).toFixed(0)}%</div>`;
+    el.appendChild(row);
+    requestAnimationFrame(()=>setTimeout(()=>{row.querySelector('.bar-fill').style.width=(v/maxV*100)+'%';},60));
+  });
+  if(arr.length>10){
+    const more=document.createElement('div'); more.className='hint';
+    more.textContent=`… ${arr.length} distinct 311 complaint types in all.`;
+    el.appendChild(more);
+  }
+  sec.style.display='';
+}
+document.getElementById('ov311').onclick=()=>{
+  const btn=document.getElementById('ov311');
+  if(!n311.length) return;
+  state.show311=!state.show311;
+  if(state.show311){ layer311.addTo(map); btn.classList.add('on'); btn.style.color=cssv('--noncrit'); btn.style.borderColor=cssv('--noncrit'); }
+  else { map.removeLayer(layer311); btn.classList.remove('on'); btn.style.color=''; btn.style.borderColor=''; }
+};
 
 /* ---------- controls wiring ---------- */
 document.querySelectorAll('.pbtn').forEach(b=>{

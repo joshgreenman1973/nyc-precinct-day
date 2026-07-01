@@ -13,6 +13,16 @@ a response-time analysis, live in the browser.
 - **Coverage:** January 1 – December 31, 2025.
 - Queried live in the browser via the Socrata API for the precinct and date you choose. Nothing is cached or pre-baked.
 
+## 311 overlay
+
+Toggle a same-day **311 (non-emergency) layer** over the police calls. 311 requests
+([dataset `erm2-nwe9`](https://data.cityofnewyork.us/Social-Services/311-Service-Requests-from-2020-to-Present/erm2-nwe9))
+carry no precinct field, so they are clipped to the precinct's official boundary
+([`y76i-bdw7`](https://data.cityofnewyork.us/City-Government/Police-Precincts/y76i-bdw7)) by
+point-in-polygon. 911 and 311 are separate systems and are **not linked at the record level** —
+this is a same-day, same-place comparison, not a matched one. (311 is near-real-time in the source
+data, but is shown for the picked 2025 date to stay aligned with the six-month-lagged 911 feed.)
+
 ## Method & limits
 
 - **Response time** = job-created to first-unit-arrived, reported only for **dispatched calls**
