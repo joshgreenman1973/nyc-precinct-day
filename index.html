@@ -153,7 +153,11 @@
 
   /* dispatch-log player */
   .player{border:1px solid var(--line2);border-radius:14px;background:var(--panel);padding:16px}
-  .prow{display:flex;align-items:center;gap:14px}
+  .prow{display:flex;align-items:center;gap:14px;flex-wrap:wrap}
+  .spd{display:flex;gap:4px;align-items:center}
+  .spd .lbl{font-family:var(--mono);font-size:10px;color:var(--mut);text-transform:uppercase;letter-spacing:.08em;margin-right:2px}
+  .spdbtn{font-family:var(--mono);font-size:11px;padding:5px 10px;border-radius:7px;border:1px solid var(--line2);background:var(--panel2);color:var(--mut);cursor:pointer}
+  .spdbtn.on{background:#1a2a38;color:var(--ink);border-color:var(--accent)}
   .pclock{font-family:var(--mono);font-size:24px;font-weight:680;min-width:104px;font-variant-numeric:tabular-nums}
   .pclock small{display:block;font-size:11px;color:var(--mut);font-weight:500}
   .player input[type=range]{width:100%;-webkit-appearance:none;height:6px;border-radius:6px;background:#22303f;outline:none}
@@ -315,7 +319,12 @@
       <div class="prow">
         <button class="playbtn" id="pplay" aria-label="Play the day">▶</button>
         <div class="pclock"><span id="pclock">00:00</span><small id="pcount">press play</small></div>
-        <div style="flex:1"><input type="range" id="pslider" min="0" max="86399" value="0" step="60"></div>
+        <div style="flex:1;min-width:180px"><input type="range" id="pslider" min="0" max="86399" value="0" step="60"></div>
+        <div class="spd"><span class="lbl">Speed</span>
+          <button class="spdbtn" data-spd="0.6">Slow</button>
+          <button class="spdbtn on" data-spd="1.4">Normal</button>
+          <button class="spdbtn" data-spd="4.4">Fast</button>
+        </div>
       </div>
       <div class="feed" id="feed"><div class="feed-empty">Press play to start the day at midnight, or drag the slider to any hour…</div></div>
     </div>
@@ -424,7 +433,7 @@
 
 <script>
 /* ---- diagnostics: surface any script error visibly; ?debug=1 shows a self-test panel ---- */
-const BUILD='10 · 2026-07-01';
+const BUILD='11 · 2026-07-01';
 window.addEventListener('error',function(ev){
   var s=document.getElementById('status');
   if(s){s.className='show err';s.textContent='⚠ Page error: '+(ev.message||'unknown')+' (line '+(ev.lineno||'?')+'). Screenshot this message and report it.';}
@@ -632,7 +641,7 @@ function render(code,date){
 }
 
 /* ---------- dispatch-log player: streams jobs at their actual timestamps ---------- */
-const PL={cursor:0,timer:null,idx:0}; const FEED_CAP=80;
+const PL={cursor:0,timer:null,idx:0,speed:1.4}; const FEED_CAP=80;
 function plEntryHTML(c){
   const pc=PRI_COLOR[c.pri]||'#888', prLabel=c.pri==='Non CIP'?'ROUTINE':c.pri.toUpperCase();
   const chip=`<span class="prichip" style="color:${pc};border-color:${pc}">${prLabel}</span>`;
@@ -664,13 +673,18 @@ function plStop(){if(PL.timer){clearInterval(PL.timer);PL.timer=null;}const b=do
 function plPlay(){
   if(PL.cursor>=86399) plRebuild(0);
   const b=document.getElementById('pplay'); b.textContent='❚❚'; b.classList.add('on');
-  const c0=PL.cursor, t0=Date.now();
+  const c0=PL.cursor, t0=Date.now(), spd=PL.speed;
   PL.timer=setInterval(()=>{
-    const next=Math.min(c0+(Date.now()-t0)*4.4,86399);
+    const next=Math.min(c0+(Date.now()-t0)*spd,86399);
     plAdvance(next,true); document.getElementById('pslider').value=next;
     if(next>=86399) plStop();
   },90);
 }
+document.querySelectorAll('.spdbtn').forEach(b=>b.onclick=()=>{
+  PL.speed=+b.dataset.spd;
+  document.querySelectorAll('.spdbtn').forEach(x=>x.classList.remove('on')); b.classList.add('on');
+  if(PL.timer){ plStop(); plPlay(); } // rebase pacing from the current moment
+});
 function pReset(){plStop();PL.cursor=0;PL.idx=0;document.getElementById('pslider').value=0;
   document.getElementById('feed').innerHTML='<div class="feed-empty">Press play to start the day at midnight, or drag the slider to any hour…</div>';
   plClock(); document.getElementById('pcount').textContent='press play';}
