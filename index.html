@@ -385,9 +385,32 @@
 
 <footer>
   <div class="wrap">
-    Built from NYC Open Data · NYPD Calls for Service (Year-to-Date), dataset n2zq-pubd · Map tiles © OpenStreetMap contributors © CARTO. No outcome or arrest data is available in this source.
+    Built from NYC Open Data · NYPD Calls for Service (Year-to-Date), dataset n2zq-pubd · Map tiles © OpenStreetMap contributors © CARTO. No outcome or arrest data is available in this source. · <span class="mono" id="buildstamp">build 9</span>
   </div>
 </footer>
+
+<script>
+/* ---- diagnostics: surface any script error visibly; ?debug=1 shows a self-test panel ---- */
+const BUILD='9 · 2026-07-01';
+window.addEventListener('error',function(ev){
+  var s=document.getElementById('status');
+  if(s){s.className='show err';s.textContent='⚠ Page error: '+(ev.message||'unknown')+' (line '+(ev.lineno||'?')+'). Screenshot this message and report it.';}
+});
+window.addEventListener('DOMContentLoaded',function(){
+  var b=document.getElementById('buildstamp'); if(b) b.textContent='build '+BUILD;
+  if(/debug/.test(location.search)){
+    var d=document.createElement('div');
+    d.style.cssText='position:fixed;bottom:12px;left:12px;right:12px;z-index:99999;background:#fff8c4;color:#332b00;border:2px solid #b09a00;border-radius:10px;padding:12px 14px;font:12px/1.6 Menlo,monospace;white-space:pre-wrap';
+    d.textContent='DIAGNOSTICS\nbuild: '+BUILD+'\nviewer: '+navigator.userAgent+'\ndata connection: testing…';
+    document.body.appendChild(d);
+    var t0=Date.now();
+    fetch('https://data.cityofnewyork.us/resource/n2zq-pubd.json?$limit=1')
+      .then(function(r){return r.json();})
+      .then(function(j){d.textContent=d.textContent.replace('testing…','OK — reached NYC Open Data in '+(Date.now()-t0)+'ms');})
+      .catch(function(e){d.textContent=d.textContent.replace('testing…','FAILED — '+e.message);});
+  }
+});
+</script>
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script src="https://unpkg.com/leaflet-gesture-handling"></script>
