@@ -151,6 +151,22 @@
   .hlabels{display:flex;gap:3px;margin-top:6px}
   .hlabels span{flex:1;text-align:center;font-family:var(--mono);font-size:9.5px;color:var(--mut)}
 
+  /* dispatch-log player */
+  .player{border:1px solid var(--line2);border-radius:14px;background:var(--panel);padding:16px}
+  .prow{display:flex;align-items:center;gap:14px}
+  .pclock{font-family:var(--mono);font-size:24px;font-weight:680;min-width:104px;font-variant-numeric:tabular-nums}
+  .pclock small{display:block;font-size:11px;color:var(--mut);font-weight:500}
+  .player input[type=range]{width:100%;-webkit-appearance:none;height:6px;border-radius:6px;background:#22303f;outline:none}
+  .player input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:18px;height:18px;border-radius:50%;background:#fff;border:3px solid var(--accent);cursor:pointer;box-shadow:0 2px 6px rgba(0,0,0,.5)}
+  .feed{margin-top:14px;max-height:340px;overflow-y:auto;border-top:1px solid var(--line);padding-top:4px}
+  .fentry{display:grid;grid-template-columns:56px 1fr auto;gap:10px;padding:7px 4px;border-bottom:1px solid var(--line);font-size:13px;align-items:baseline}
+  .fentry .ft{font-family:var(--mono);font-weight:650;color:var(--accent2);font-size:12.5px}
+  .fentry .fr{font-family:var(--mono);color:var(--mut);font-size:11.5px;text-align:right;white-space:nowrap}
+  .fentry.new{animation:fin .7s ease}
+  @keyframes fin{0%{background:rgba(55,208,196,.22)}100%{background:transparent}}
+  .prichip{display:inline-block;font-family:var(--mono);font-size:10px;padding:1px 7px;border-radius:12px;margin-left:8px;font-weight:650;vertical-align:1px;border:1px solid}
+  .feed-empty{color:var(--mut);font-style:italic;padding:10px 4px;font-size:13px}
+
   .grid2{display:grid;grid-template-columns:1fr 1fr;gap:26px}
   .pipe{display:flex;flex-direction:column;gap:8px}
   .pstep{background:var(--panel2);border:1px solid var(--line);border-left:3px solid var(--accent);
@@ -202,8 +218,8 @@
   <div class="wrap">
     <div class="kicker"><span class="dot"></span> Live from NYC Open Data</div>
     <h1 class="title">A day on the police radio</h1>
-    <p class="sub">Pick any of New York City's 77 police precincts and any day in 2025. This pulls every 911 call and radio run the NYPD dispatched there that day, straight from the city's own records, and rebuilds the map, the timeline and the response breakdown live.</p>
-    <a href="https://joshgreenman1973.github.io/nyc-fire-medical-day/" style="display:inline-block;margin-top:16px;font-size:13px;font-family:var(--mono);color:var(--accent);text-decoration:none;border:1px solid var(--line2);padding:7px 13px;border-radius:8px">See the FDNY fire &amp; medical version of this day →</a>
+    <p class="sub">Pick any of New York City's 77 police precincts and any day in 2025. This pulls every 911 call and radio run the New York City Police Department (NYPD) dispatched there that day, straight from the city's own records, and rebuilds the map, the timeline and the response breakdown live.</p>
+    <a href="https://joshgreenman1973.github.io/nyc-fire-medical-day/" style="display:inline-block;margin-top:16px;font-size:13px;font-family:var(--mono);color:var(--accent);text-decoration:none;border:1px solid var(--line2);padding:7px 13px;border-radius:8px">See the fire &amp; medical version — Fire Department of the City of New York (FDNY) →</a>
   </div>
 </header>
 
@@ -292,6 +308,22 @@
 
 <section>
   <div class="wrap">
+    <div class="sec-h">The day as it happened</div>
+    <h2 class="sec-t">Play the dispatch log</h2>
+    <p class="sec-d">The same day as a readable radio log: press play to stream every job in the order it came in — a text companion to the map's animation above, where the map shows <em>where</em> and this shows <em>what</em>, in sequence.</p>
+    <div class="player">
+      <div class="prow">
+        <button class="playbtn" id="pplay" aria-label="Play the day">▶</button>
+        <div class="pclock"><span id="pclock">00:00</span><small id="pcount">press play</small></div>
+        <div style="flex:1"><input type="range" id="pslider" min="0" max="86399" value="0" step="60"></div>
+      </div>
+      <div class="feed" id="feed"><div class="feed-empty">Press play to start the day at midnight, or drag the slider to any hour…</div></div>
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="wrap">
     <div class="sec-h">The rhythm of the day</div>
     <h2 class="sec-t">When the calls came in</h2>
     <p class="sec-d">Jobs by hour of the day. Click any bar to pin the map to that hour.</p>
@@ -366,6 +398,7 @@
         <li><b>Medians, not means.</b> A handful of low-priority jobs can sit in queue for hours and badly skew averages; medians are the honest central measure.</li>
         <li><b>No outcomes.</b> This dataset records each job's type, times, location and priority — but carries <b>no arrest or disposition</b>. It cannot tell you how a call was resolved, and there is no key to link it to the separate NYPD arrests data.</li>
         <li><b>Jobs, not incidents.</b> One incident can generate several jobs. “Families” are this tool's grouping of the raw call descriptions.</li>
+        <li><b>Priority (“CIP” = Crime In Progress).</b> The NYPD's <span class="mono">CIP_JOBS</span> field flags whether a call is a crime in progress and how urgent: <b>Critical</b> and <b>Serious</b> are crimes in progress (the guns-and-knives calls); “Non-CIP,” shown here as <b>Routine</b>, means the call is not a crime in progress — medical assists, patrol, disputes and the rest.</li>
         <li><b>311 overlay:</b> non-emergency 311 service requests (dataset <span class="mono">erm2-nwe9</span>) created on the same calendar day. 311 records carry no precinct field, so they are clipped to the precinct's official boundary (<span class="mono">y76i-bdw7</span>) by point-in-polygon — a request counts if its coordinates fall inside this precinct. 911 and 311 are separate systems and are not linked at the record level; this is a same-day, same-place comparison, not a matched one.</li>
       </ul>
       <button class="aibtn" id="aibtn">⚠ AI caution — read before sharing</button>
@@ -391,7 +424,7 @@
 
 <script>
 /* ---- diagnostics: surface any script error visibly; ?debug=1 shows a self-test panel ---- */
-const BUILD='9 · 2026-07-01';
+const BUILD='10 · 2026-07-01';
 window.addEventListener('error',function(ev){
   var s=document.getElementById('status');
   if(s){s.className='show err';s.textContent='⚠ Page error: '+(ev.message||'unknown')+' (line '+(ev.lineno||'?')+'). Screenshot this message and report it.';}
@@ -595,7 +628,54 @@ function render(code,date){
   document.querySelectorAll('.ibtn').forEach(x=>{x.classList.remove('on');x.style.color='';x.style.borderColor='';});
   const iAll=document.getElementById('ib-all');iAll.classList.add('on');iAll.style.color=cssv('--accent2');iAll.style.borderColor=cssv('--accent2');
   syncLegend(); syncHours(); refresh();
+  pReset();
 }
+
+/* ---------- dispatch-log player: streams jobs at their actual timestamps ---------- */
+const PL={cursor:0,timer:null,idx:0}; const FEED_CAP=80;
+function plEntryHTML(c){
+  const pc=PRI_COLOR[c.pri]||'#888', prLabel=c.pri==='Non CIP'?'ROUTINE':c.pri.toUpperCase();
+  const chip=`<span class="prichip" style="color:${pc};border-color:${pc}">${prLabel}</span>`;
+  const right = c.rsp==null?'self-cleared':(c.rsp<=0.2?'already on scene':c.rsp.toFixed(0)+' min to scene');
+  return `<div class="ft">${c.tm.slice(0,5)}</div><div>${c.ty}${chip}</div><div class="fr">${right}</div>`;
+}
+function plClock(){
+  const h=Math.floor(PL.cursor/3600),m=Math.floor((PL.cursor%3600)/60);
+  document.getElementById('pclock').textContent=String(h).padStart(2,'0')+':'+String(m).padStart(2,'0');
+  document.getElementById('pcount').textContent=PL.idx+' job'+(PL.idx===1?'':'s')+' so far';
+  const p=PL.cursor/86399*100;
+  document.getElementById('pslider').style.background=`linear-gradient(90deg,var(--accent) ${p}%,#22303f ${p}%)`;
+}
+function plAdvance(cur,animate){
+  const feed=document.getElementById('feed');
+  if(feed.querySelector('.feed-empty')&&PL.idx<calls.length&&calls[PL.idx].s<=cur) feed.innerHTML='';
+  while(PL.idx<calls.length&&calls[PL.idx].s<=cur){
+    const d=document.createElement('div'); d.className='fentry'+(animate?' new':'');
+    d.innerHTML=plEntryHTML(calls[PL.idx]); feed.prepend(d); PL.idx++;
+  }
+  while(feed.children.length>FEED_CAP) feed.removeChild(feed.lastChild);
+  PL.cursor=cur; plClock();
+}
+function plRebuild(cur){
+  const feed=document.getElementById('feed'); feed.innerHTML=''; PL.idx=0; PL.cursor=0; plAdvance(cur,false);
+  if(!feed.children.length) feed.innerHTML='<div class="feed-empty">No jobs yet by this time of day — drag further or press play.</div>';
+}
+function plStop(){if(PL.timer){clearInterval(PL.timer);PL.timer=null;}const b=document.getElementById('pplay');b.textContent='▶';b.classList.remove('on');}
+function plPlay(){
+  if(PL.cursor>=86399) plRebuild(0);
+  const b=document.getElementById('pplay'); b.textContent='❚❚'; b.classList.add('on');
+  const c0=PL.cursor, t0=Date.now();
+  PL.timer=setInterval(()=>{
+    const next=Math.min(c0+(Date.now()-t0)*4.4,86399);
+    plAdvance(next,true); document.getElementById('pslider').value=next;
+    if(next>=86399) plStop();
+  },90);
+}
+function pReset(){plStop();PL.cursor=0;PL.idx=0;document.getElementById('pslider').value=0;
+  document.getElementById('feed').innerHTML='<div class="feed-empty">Press play to start the day at midnight, or drag the slider to any hour…</div>';
+  plClock(); document.getElementById('pcount').textContent='press play';}
+document.getElementById('pplay').onclick=()=>{PL.timer?plStop():plPlay();};
+document.getElementById('pslider').oninput=e=>{plStop();plRebuild(+e.target.value);};
 
 function buildMap(){
   layer.clearLayers(); markers=[];
