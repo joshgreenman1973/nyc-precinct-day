@@ -209,6 +209,12 @@
     .timerow{flex-wrap:wrap}.modes{margin-left:0}
     #map{height:420px}
     select{min-width:0;width:100%} .field{flex:1 1 100%}
+    /* bigger touch targets on phones */
+    .pbtn,.ibtn,.modebtn,.spdbtn{padding:9px 14px;font-size:12.5px}
+    .lchip{padding:8px 12px 8px 10px;font-size:13px}
+    .lchip .sw{width:12px;height:12px}
+    .playbtn{width:48px;height:48px}
+    .legend{gap:9px}.prifilter{gap:8px}
   }
 </style>
 </head>
@@ -415,7 +421,7 @@
 
 <script>
 /* ---- diagnostics: surface any script error visibly; ?debug=1 shows a self-test panel ---- */
-const BUILD='12 · 2026-07-01';
+const BUILD='13 · 2026-07-01';
 window.addEventListener('error',function(ev){
   var s=document.getElementById('status');
   if(s){s.className='show err';s.textContent='⚠ Page error: '+(ev.message||'unknown')+' (line '+(ev.lineno||'?')+'). Screenshot this message and report it.';}
