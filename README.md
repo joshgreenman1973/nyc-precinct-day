@@ -1,6 +1,6 @@
 # A day on the police radio — NYC precinct explorer
 
-Pick any of New York City's 77 police precincts and any day in 2025, and this tool pulls
+Pick any of New York City's 78 police precincts and any day from January 2018 on, and this tool pulls
 every 911 call and radio run the NYPD dispatched there that day — straight from the city's
 own records — and rebuilds an interactive map, a 24-hour timeline, a call-type breakdown and
 a response-time analysis, live in the browser.
@@ -9,8 +9,8 @@ a response-time analysis, live in the browser.
 
 ## Data
 
-- **Source:** [NYPD Calls for Service (Year-to-Date)](https://data.cityofnewyork.us/Public-Safety/NYPD-Calls-for-Service-Year-to-Date-/n2zq-pubd), NYC Open Data, dataset `n2zq-pubd` — the police department's own computer-aided dispatch (CAD) log.
-- **Coverage:** January 1 – December 31, 2025.
+- **Source:** NYPD Calls for Service, NYC Open Data: Year-to-Date `n2zq-pubd` for 2025 on, Historic `d6zx-ckhd` for 2018–2024 (same fields). The police department's own computer-aided dispatch (CAD) log.
+- **Coverage:** January 1, 2018, through the latest published month (June 30, 2026, as of Sept. 23, 2026). The picker reads the Year-to-Date set's latest date on load.
 - Queried live in the browser via the Socrata API for the precinct and date you choose. Nothing is cached or pre-baked.
 
 ## 311 overlay

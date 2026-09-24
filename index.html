@@ -224,7 +224,7 @@
   <div class="wrap">
     <div class="kicker"><span class="dot"></span> Live from NYC Open Data</div>
     <h1 class="title">A day on the police radio</h1>
-    <p class="sub">Pick any of New York City's 77 police precincts and any day in 2025. This pulls every 911 call and radio run the New York City Police Department (NYPD) dispatched there that day, straight from the city's own records, and rebuilds the map, the timeline and the response breakdown live.</p>
+    <p class="sub">Pick any of New York City's 78 police precincts and any day from January 2018 through the latest month the city has published. This pulls every 911 call and radio run the New York City Police Department (NYPD) dispatched there that day, straight from the city's own records, and rebuilds the map, the timeline and the response breakdown live.</p>
     <div style="display:flex;flex-wrap:wrap;gap:10px;margin-top:16px">
       <a href="https://joshgreenman1973.github.io/nyc-fire-medical-day/" style="font-size:13px;font-family:var(--mono);color:var(--accent);text-decoration:none;border:1px solid var(--line2);padding:7px 13px;border-radius:8px">🚑 Fire &amp; medical (FDNY) version →</a>
       <a href="https://joshgreenman1973.github.io/nyc-311-day/" style="font-size:13px;font-family:var(--mono);color:var(--accent);text-decoration:none;border:1px solid var(--line2);padding:7px 13px;border-radius:8px">☎️ 311 service-request version →</a>
@@ -240,13 +240,13 @@
         <select id="pct"></select>
       </div>
       <div class="field">
-        <label for="date">Date (2025)</label>
-        <input type="date" id="date" min="2025-01-01" max="2025-12-31" value="2025-12-17">
+        <label for="date">Date</label>
+        <input type="date" id="date" min="2018-01-01" max="2026-06-30" value="2025-12-17">
       </div>
       <button class="loadbtn" id="load">Load the day</button>
       <button class="randbtn" id="rand" title="Jump to a random precinct and day">🎲 Surprise me</button>
     </div>
-    <div class="cbnote">Data available for Jan 1 – Dec 31, 2025. Source: NYPD Calls for Service (Year-to-Date), NYC Open Data.</div>
+    <div class="cbnote" id="cbnote">Data available from Jan 1, 2018, through June 30, 2026. Source: NYPD Calls for Service (Historic and Year-to-Date), NYC Open Data.</div>
   </div>
 </div>
 
@@ -385,8 +385,8 @@
     <div class="methodbox">
       <h3>Source &amp; method</h3>
       <ul>
-        <li><b>Data:</b> NYPD Calls for Service (Year-to-Date), NYC Open Data dataset <span class="mono">n2zq-pubd</span> — the police department's own computer-aided dispatch (CAD) log. Queried live in your browser for the precinct and date you choose.</li>
-        <li><b>Coverage:</b> the dataset holds January 1 – December 31, 2025. Dates outside that range have no data.</li>
+        <li><b>Data:</b> NYPD Calls for Service, NYC Open Data — the police department's own computer-aided dispatch (CAD) log. Days from 2025 on come from the Year-to-Date dataset <span class="mono">n2zq-pubd</span>; days from 2018 through 2024 come from the Historic dataset <span class="mono">d6zx-ckhd</span>, which has the same fields. Queried live in your browser for the precinct and date you choose.</li>
+        <li><b>Coverage:</b> January 1, 2018, through the latest month the city has published (June 30, 2026, as of September 2026; the date picker updates itself when newer months appear).</li>
         <li id="m-current"></li>
       </ul>
       <h3>Definitions &amp; caveats</h3>
@@ -415,19 +415,25 @@
 
 <footer>
   <div class="wrap">
-    Built from NYC Open Data · NYPD Calls for Service (Year-to-Date), dataset n2zq-pubd · Map tiles © OpenStreetMap contributors © CARTO. No outcome or arrest data is available in this source. · <span class="mono" id="buildstamp">build 9</span>
+    Built from NYC Open Data · NYPD Calls for Service, datasets n2zq-pubd (2025 on) and d6zx-ckhd (2018–2024) · Map tiles © OpenStreetMap contributors © CARTO. No outcome or arrest data is available in this source. · <span class="mono" id="buildstamp">build 9</span>
   </div>
 </footer>
 
 <script>
 /* ---- diagnostics: surface any script error visibly; ?debug=1 shows a self-test panel ---- */
-const BUILD='13 · 2026-07-01';
+const BUILD='14 · 2026-09-23';
 window.addEventListener('error',function(ev){
   var s=document.getElementById('status');
   if(s){s.className='show err';s.textContent='⚠ Page error: '+(ev.message||'unknown')+' (line '+(ev.lineno||'?')+'). Screenshot this message and report it.';}
 });
 window.addEventListener('DOMContentLoaded',function(){
   var b=document.getElementById('buildstamp'); if(b) b.textContent='build '+BUILD;
+  fetch('https://data.cityofnewyork.us/resource/n2zq-pubd.json?$select=max(incident_date)%20as%20m')
+    .then(function(r){return r.json();})
+    .then(function(j){var m=j&&j[0]&&j[0].m?j[0].m.slice(0,10):null;var di=document.getElementById('date');
+      if(m&&m>di.max){di.max=m;var n=document.getElementById('cbnote');
+        if(n)n.textContent='Data available from Jan 1, 2018, through '+new Date(m+'T12:00:00').toLocaleDateString('en-US',{month:'long',day:'numeric',year:'numeric'})+'. Source: NYPD Calls for Service (Historic and Year-to-Date), NYC Open Data.';}})
+    .catch(function(){});
   if(/debug/.test(location.search)){
     var d=document.createElement('div');
     d.style.cssText='position:fixed;bottom:12px;left:12px;right:12px;z-index:99999;background:#fff8c4;color:#332b00;border:2px solid #b09a00;border-radius:10px;padding:12px 14px;font:12px/1.6 Menlo,monospace;white-space:pre-wrap';
@@ -450,7 +456,7 @@ const PRECINCTS=[
  ['Manhattan',[[1,'Financial District / Battery Park'],[5,'Chinatown / Little Italy'],[6,'West Village'],[7,'Lower East Side'],[9,'East Village'],[10,'Chelsea / Hudson Yards'],[13,'Gramercy / Flatiron'],[14,'Midtown South / Times Square'],[17,'Murray Hill / Turtle Bay'],[18,"Midtown North / Hell's Kitchen"],[19,'Upper East Side'],[20,'Upper West Side'],[22,'Central Park'],[23,'East Harlem South'],[24,'Manhattan Valley'],[25,'East Harlem North'],[26,'Morningside Heights'],[28,'Central Harlem South'],[30,'Hamilton Heights'],[32,'Central Harlem North'],[33,'Washington Heights South'],[34,'Washington Heights / Inwood']]],
  ['Bronx',[[40,'Mott Haven / Melrose'],[41,'Hunts Point'],[42,'Morrisania / Claremont'],[43,'Soundview / Parkchester'],[44,'Highbridge / Concourse'],[45,'Throgs Neck / Co-op City'],[46,'Fordham / University Heights'],[47,'Wakefield / Williamsbridge'],[48,'Belmont / East Tremont'],[49,'Pelham Parkway / Morris Park'],[50,'Riverdale / Kingsbridge'],[52,'Bedford Park / Norwood']]],
  ['Brooklyn',[[60,'Coney Island'],[61,'Sheepshead Bay / Gravesend'],[62,'Bensonhurst / Bath Beach'],[63,'Flatlands / Mill Basin'],[66,'Borough Park'],[67,'East Flatbush'],[68,'Bay Ridge / Dyker Heights'],[69,'Canarsie'],[70,'Flatbush / Midwood'],[71,'Crown Heights South'],[72,'Sunset Park / Windsor Terrace'],[73,'Brownsville'],[75,'East New York / Cypress Hills'],[76,'Red Hook / Carroll Gardens'],[77,'Prospect Heights / Crown Heights'],[78,'Park Slope'],[79,'Bedford-Stuyvesant South'],[81,'Stuyvesant Heights'],[83,'Bushwick'],[84,'Downtown Brooklyn / Brooklyn Heights'],[88,'Fort Greene / Clinton Hill'],[90,'Williamsburg South'],[94,'Greenpoint']]],
- ['Queens',[[100,'Rockaway'],[101,'Far Rockaway'],[102,'Richmond Hill / Woodhaven'],[103,'Jamaica'],[104,'Ridgewood / Glendale / Maspeth'],[105,'Queens Village / Rosedale'],[106,'Ozone Park / Howard Beach'],[107,'Fresh Meadows / Briarwood'],[108,'Long Island City / Sunnyside'],[109,'Flushing / College Point'],[110,'Elmhurst / Corona'],[111,'Bayside / Douglaston'],[112,'Forest Hills / Rego Park'],[113,'St. Albans / Springfield Gardens'],[114,'Astoria / Long Island City'],[115,'Jackson Heights / East Elmhurst']]],
+ ['Queens',[[100,'Rockaway'],[101,'Far Rockaway'],[102,'Richmond Hill / Woodhaven'],[103,'Jamaica'],[104,'Ridgewood / Glendale / Maspeth'],[105,'Queens Village / Rosedale'],[106,'Ozone Park / Howard Beach'],[107,'Fresh Meadows / Briarwood'],[108,'Long Island City / Sunnyside'],[109,'Flushing / College Point'],[110,'Elmhurst / Corona'],[111,'Bayside / Douglaston'],[112,'Forest Hills / Rego Park'],[113,'St. Albans / Springfield Gardens'],[114,'Astoria / Long Island City'],[115,'Jackson Heights / East Elmhurst'],[116,'Southeast Queens (split from the 105th, Dec. 2024)']]],
  ['Staten Island',[[120,'St. George / Stapleton'],[121,'Graniteville / Mariners Harbor'],[122,'New Dorp / South Beach'],[123,'Tottenville / Great Kills']]],
 ];
 const PCT_NAME={}, PCT_BORO={}, ALL_CODES=[];
@@ -516,13 +522,14 @@ const loadBtn=document.getElementById('load'), statusEl=document.getElementById(
 function setStatus(kind,html){statusEl.className=kind?('show '+kind):'';statusEl.innerHTML=html;}
 async function load(auto){
   const code=pctSel.value, date=document.getElementById('date').value;
-  if(!date){setStatus('err','Please choose a date in 2025.');return;}
+  if(!date){setStatus('err','Please choose a date.');return;}
   loadBtn.disabled=true; loadBtn.textContent='Loading…';
   document.getElementById('app').classList.add('dim');
   document.getElementById('stats').style.display='none';
   setStatus('load',`<span class="spin"></span>Querying NYC Open Data — ${ordinal(+code)} Precinct, ${date}…`);
   const where=`nypd_pct_cd='${code}' AND incident_date='${date}T00:00:00'`;
-  const url=`https://data.cityofnewyork.us/resource/n2zq-pubd.json?$where=${encodeURIComponent(where)}&$limit=20000&$order=incident_time`;
+  const ds=date<'2025-01-01'?'d6zx-ckhd':'n2zq-pubd';
+  const url=`https://data.cityofnewyork.us/resource/${ds}.json?$where=${encodeURIComponent(where)}&$limit=20000&$order=incident_time`;
   const ctrl=new AbortController(); const to=setTimeout(()=>ctrl.abort(),15000);
   try{
     const res=await fetch(url,{signal:ctrl.signal});
@@ -911,8 +918,9 @@ document.getElementById('me-clear').onclick=clearFilters;
 loadBtn.onclick=()=>load();
 document.getElementById('rand').onclick=()=>{
   const code=ALL_CODES[Math.floor(Math.random()*ALL_CODES.length)];
-  const day=1+Math.floor(Math.random()*365);
-  const d=new Date(2025,0,day);
+  const di=document.getElementById('date');
+  const lo=Date.parse(di.min), hi=Date.parse(di.max);
+  const d=new Date(lo+Math.floor(Math.random()*((hi-lo)/864e5+1))*864e5);
   pctSel.value=code;
   document.getElementById('date').value=d.toISOString().slice(0,10);
   load();
