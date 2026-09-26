@@ -421,7 +421,7 @@
 
 <script>
 /* ---- diagnostics: surface any script error visibly; ?debug=1 shows a self-test panel ---- */
-const BUILD='14 · 2026-09-23';
+const BUILD='15 · 2026-09-26';
 window.addEventListener('error',function(ev){
   var s=document.getElementById('status');
   if(s){s.className='show err';s.textContent='⚠ Page error: '+(ev.message||'unknown')+' (line '+(ev.lineno||'?')+'). Screenshot this message and report it.';}
@@ -464,7 +464,7 @@ PRECINCTS.forEach(([boro,list])=>list.forEach(([c,n])=>{PCT_NAME[c]=n;PCT_BORO[c
 const pctSel=document.getElementById('pct');
 PRECINCTS.forEach(([boro,list])=>{
   const og=document.createElement('optgroup'); og.label=boro;
-  list.forEach(([c,n])=>{const o=document.createElement('option');o.value=c;o.textContent=`${c}${c<100?'th':'th'} — ${n}`;og.appendChild(o);});
+  list.forEach(([c,n])=>{const o=document.createElement('option');o.value=c;o.textContent=`${ordinal(c)} — ${n}`;og.appendChild(o);});
   pctSel.appendChild(og);
 });
 pctSel.value='75';
